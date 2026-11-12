@@ -122,7 +122,7 @@
   border-bottom: 1px solid var(--color-board-rule);
 }
 .board__gap-in { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs) var(--space-md); }
-.board__gap-mark { width: 4px; height: 16px; margin-inline: var(--space-xs); fill: var(--color-board-muted); flex-shrink: 0; }
+.board__gap-mark { width: 4px; height: 16px; margin-inline: var(--space-xs); color: var(--color-board-muted); fill: currentColor; flex-shrink: 0; }
 .board__gap-count { color: var(--color-board-muted); font-size: var(--text-sm); font-weight: 700; white-space: nowrap; }
 .board__gap-more { border-color: var(--color-ink); font-size: var(--text-sm); }
 @media (hover: hover) { .board__gap-more:hover { background: var(--color-board-hover); } }
