@@ -271,9 +271,12 @@ test('a 600 rep board stays short and its ranks fit', async ({ page }, info) => 
         if (right(row.querySelector('.board__link')!) > rate.getBoundingClientRect().left + 0.5 && rep.getBoundingClientRect().top === rate.getBoundingClientRect().top) bad.push(`${row.getAttribute('data-rep')} under the rate`)
       }
       const wide = [...document.querySelectorAll('[data-rep] .board__rank')].some((el) => /\d{3}/.test(el.textContent ?? ''))
-      return { bad, wide, scroll: document.documentElement.scrollWidth - innerWidth }
+      // Gap rows stay one line, so they're all one height for the row slide.
+      const gaps = new Set([...document.querySelectorAll('.board__gap')].map((el) => Math.round(el.getBoundingClientRect().height)))
+      return { bad, wide, gaps: gaps.size, scroll: document.documentElement.scrollWidth - innerWidth }
     })
     expect(r.wide, `${label}: no three digit rank on the board`).toBe(true)
+    expect(r.gaps, `${label}: gap rows of different heights`).toBe(1)
     expect(r.bad, label).toEqual([])
     expect(r.scroll, `${label}: the page scrolls sideways`).toBeLessThanOrEqual(0)
   }
