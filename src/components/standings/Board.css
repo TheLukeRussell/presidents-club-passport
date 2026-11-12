@@ -1,7 +1,8 @@
 /* Hallmark · this folder follows the build stamp in src/styles/app.css */
 /* The board. A real table on wide screens; on phones each row restacks into
    a labelled block so nothing scrolls sideways. White sheet, Cloud hairlines,
-   a Fog band below the line, and the line itself is a row of its own. */
+   a Fog band below the line, and the line itself is a row of its own. So is
+   each gap on a short board. */
 
 .board-wrap { display: grid; gap: var(--space-sm); }
 
@@ -110,6 +111,22 @@
   vertical-align: bottom;
 }
 
+/* A gap: reps the short board leaves out, folded into one quiet row. Same
+   sheet and hairline as a rep, on Fog when it's below the line, so the band
+   under the line doesn't break. A column of dots stands in for the ranks it
+   skips, then the count, then an outline button like the team choices. */
+.board__gap { background: var(--color-board); }
+.board__gap.is-below { background: var(--color-board-below); }
+.board__gap td {
+  padding: var(--space-2xs) var(--space-sm);
+  border-bottom: 1px solid var(--color-board-rule);
+}
+.board__gap-in { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs) var(--space-md); }
+.board__gap-mark { width: 4px; height: 16px; margin-inline: var(--space-xs); fill: var(--color-board-muted); flex-shrink: 0; }
+.board__gap-count { color: var(--color-board-muted); font-size: var(--text-sm); font-weight: 700; white-space: nowrap; }
+.board__gap-more { border-color: var(--color-ink); font-size: var(--text-sm); }
+@media (hover: hover) { .board__gap-more:hover { background: var(--color-board-hover); } }
+
 .board-empty {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -190,6 +207,9 @@
   .board__cut { display: block; }
   .board__cut td { display: block; }
   .board__cut-label { padding-inline: var(--space-xs); }
+  .board__gap, .board__gap td { display: block; }
+  .board__gap td { padding-inline: var(--space-xs); }
+  .board__gap-mark { margin-inline: var(--space-sm) var(--space-2xs); }
 }
 
 @media (prefers-reduced-motion: reduce) {

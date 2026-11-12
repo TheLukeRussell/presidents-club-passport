@@ -1,16 +1,19 @@
-// The Standings screen: three figures, the podium, and the full board with
-// the President's Club line drawn across it. Team filter and name search
-// live in the URL (#/standings?team=netsec&q=kai) so a filtered view can be shared.
+// The Standings screen: three figures, the podium, and the board with the
+// President's Club line drawn across it. Team filter and name search live in
+// the URL (#/standings?team=netsec&q=kai) so a filtered view can be shared.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { TEAMS } from '../../config'
+import type { Span } from '../../lib/board'
 import { figuresFor } from '../../lib/ranking'
 import { useApp } from '../../state/AppState'
 import { Board } from './Board'
 import { Figures } from './Figures'
 import { Podium } from './Podium'
 import './StandingsScreen.css'
+
+const NONE: Span[] = []
 
 export function StandingsScreen() {
   const app = useApp()
@@ -49,6 +52,15 @@ export function StandingsScreen() {
   const rows = needle ? teamRows.filter((row) => row.rep.name.toLowerCase().includes(needle)) : teamRows
   const figures = figuresFor(teamRows, model, ctx)
   const scope = team ? `${team} reps` : 'reps'
+
+  // Gaps opened with Show more belong to this filter and search. Change
+  // either and the board folds back up.
+  const { openedGaps, openGap, closeGaps } = app
+  const view = `${team ?? 'all'}|${needle}`
+  const opened = openedGaps.key === view ? openedGaps.spans : NONE
+  useEffect(() => {
+    if (openedGaps.spans.length && openedGaps.key !== view) closeGaps()
+  }, [openedGaps, view, closeGaps])
 
   return (
     <div className="standings container">
@@ -98,7 +110,16 @@ export function StandingsScreen() {
 
       <section className="scoreboard" aria-label="Scoreboard">
         {!needle && teamRows.some((row) => row.rank !== null) && <Podium rows={teamRows} team={team} />}
-        <Board rows={rows} viewAsId={viewAs.id} team={team} query={query} onClear={() => search('')} />
+        <Board
+          rows={rows}
+          viewAsId={viewAs.id}
+          team={team}
+          query={query}
+          full={Boolean(needle)}
+          opened={opened}
+          onOpen={(span) => openGap(view, span)}
+          onClear={() => search('')}
+        />
       </section>
     </div>
   )

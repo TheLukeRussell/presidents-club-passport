@@ -1,6 +1,7 @@
 // The demo, start to finish: open the passport, turn every page, record
 // today's attendance, check the standings moved, filter, then reset.
 
+import { readFileSync } from 'node:fs'
 import { expect, test, type Page } from '@playwright/test'
 
 const where = (page: Page) => page.locator('.passport__where')
@@ -85,7 +86,8 @@ test('the demo flow works end to end', async ({ page }, info) => {
   await expect(shown(page).locator('.data__stat').filter({ hasText: 'Rank' })).toContainText('24th of 59, tied')
 
   // Standings picked it up. One more rep is above the line, and the new
-  // hire, who missed today, is still unranked rather than last.
+  // hire, who missed today, is still unranked rather than last. She sits at
+  // the bottom of the short board, folded into the last gap, so open it.
   await page.getByRole('link', { name: 'Standings' }).click()
   const hannah = page.locator('[data-rep="hannah-kowalski"]')
   await expect(hannah.locator('.board__rank')).toHaveText('Tied T24')
@@ -95,6 +97,8 @@ test('the demo flow works end to end', async ({ page }, info) => {
   await expect(page.locator('.figures__unit').nth(0)).toHaveText('of 59 ranked reps')
   await expect(page.locator('.figures__value').nth(2)).toHaveText('12')
   const clara = page.locator('[data-rep="clara-dubois"]')
+  await expect(clara).toHaveCount(0)
+  await page.getByRole('button', { name: 'Show all 28' }).click()
   await expect(clara.locator('.board__stamps')).toHaveText('0 of 1')
   await expect(clara.locator('.board__status')).toHaveText('Unranked')
 
@@ -145,6 +149,104 @@ test('the demo flow works end to end', async ({ page }, info) => {
   await expect(clara.locator('.board__status')).toHaveText('Unranked')
   await expect(page.locator('.podium__step--first .podium__name')).toHaveText('Jordan Hale')
   await expect(page.locator('.podium__rank').first()).toHaveText('Rank 1')
+})
+
+// Past 25 reps the board is short: the top 10, two reps either side of the
+// line and three either side of you, with a gap row for each run left out.
+// A team of 12 shows everyone, a search shows every match, and the gaps you
+// open stay open until the filter or the search changes.
+test('the board stays short and every rep is a tap away', async ({ page }) => {
+  const rows = page.locator('[data-rep]')
+  const gaps = page.locator('.board__gap')
+  await page.goto('./#/standings')
+
+  // You're on it without opening anything, and the line has a rep either side.
+  await expect(page.locator('[data-rep="hannah-kowalski"]')).toContainText('You')
+  await expect(rows).toHaveCount(17)
+  await expect(gaps).toHaveText([/^14 more reps/, /^29 more reps/])
+  expect(await page.locator('.board__cut').evaluate((el) => [el.previousElementSibling?.hasAttribute('data-rep'), el.nextElementSibling?.hasAttribute('data-rep')])).toEqual([true, true])
+
+  // A gap is a row of the table with one cell across all eight columns, and
+  // its button says what it opens. Open it from the keyboard: focus lands on
+  // the first rep it brings in, where the gap was.
+  const gap = page.getByRole('row', { name: /14 more reps/ })
+  await expect(gap.getByRole('cell')).toHaveAttribute('colspan', '8')
+  const more = gap.getByRole('button', { name: 'Show all 14' })
+  await expect(more).toHaveAccessibleDescription('14 more reps')
+  await more.focus()
+  await page.keyboard.press('Enter')
+  await expect(rows).toHaveCount(31)
+  await expect(gaps).toHaveCount(1)
+  await expect(page.getByRole('link', { name: 'Brianna Cole' })).toBeFocused()
+
+  // Still open after a trip to a passport and back.
+  await page.getByRole('link', { name: 'Brianna Cole' }).click()
+  await expect(page).toHaveURL(/#\/passport\/brianna-cole/)
+  await page.goBack()
+  await expect(rows).toHaveCount(31)
+
+  // A team of 12 shows them all. Changing the filter folds the board back up.
+  await page.locator('label[for="team-federal"]').click()
+  await expect(rows).toHaveCount(12)
+  await expect(gaps).toHaveCount(0)
+  await page.locator('label[for="team-all"]').click()
+  await expect(rows).toHaveCount(17)
+  await expect(gaps).toHaveCount(2)
+
+  // Search shows every match, in rank order, with no gaps.
+  const data: { rep_name: string }[] = await page.evaluate(() => fetch('data/attendance.json').then((r) => r.json()))
+  const matches = new Set(data.map((r) => r.rep_name).filter((name) => name.toLowerCase().includes('e'))).size
+  expect(matches).toBeGreaterThan(25)
+  const search = page.getByLabel('Search by name')
+  await search.fill('e')
+  await expect(rows).toHaveCount(matches)
+  await expect(gaps).toHaveCount(0)
+  const ranks = (await page.locator('[data-rep] .board__rank').allTextContents()).map((t) => (t.includes('Not ranked') ? Infinity : Number(t.replace(/\D/g, ''))))
+  expect(ranks).toEqual([...ranks].sort((a, b) => a - b))
+  await search.fill('')
+  await expect(rows).toHaveCount(17)
+
+  // The last gap runs down to the new hire, unranked at the bottom.
+  await page.getByRole('button', { name: 'Show all 29' }).click()
+  await expect(page.locator('[data-rep="clara-dubois"] .board__status')).toHaveText('Unranked')
+  await expect(rows).toHaveCount(46)
+})
+
+// Prod size: 600 reps, the sample plus nine made-up copies of it (each rep's
+// record under a first name paired with another sample surname), so ranks
+// run past 99 with big ties. The demo still opens as Hannah, the board stays
+// short with you on it, and Record still slides.
+test('a 600 rep board stays short', async ({ page }) => {
+  type Row = { rep_email: string; rep_name: string }
+  const sample: Row[] = JSON.parse(readFileSync('public/data/attendance.json', 'utf8'))
+  const byRep = new Map<string, Row[]>()
+  for (const row of sample) byRep.set(row.rep_email, [...(byRep.get(row.rep_email) ?? []), row])
+  const reps = [...byRep.keys()]
+  const big = [...sample]
+  for (let k = 1; k < 10; k++) {
+    reps.forEach((email, i) => {
+      const first = byRep.get(email)![0].rep_name.split(' ')[0]
+      const last = byRep.get(reps[(i + k * 7) % reps.length])![0].rep_name.split(' ').at(-1)
+      for (const row of byRep.get(email)!) big.push({ ...row, rep_email: email.replace('@', `.${k}@`), rep_name: `${first} ${last}` })
+    })
+  }
+  expect(big).toHaveLength(600 * 24)
+  await page.route('**/data/attendance.json', (route) => route.fulfill({ json: big }))
+
+  await page.goto('./')
+  await expect(page).toHaveURL(/#\/passport\/hannah-kowalski$/)
+  await page.goto('./#/standings')
+  const rows = page.locator('[data-rep]')
+  await expect(page.locator('[data-rep="hannah-kowalski"]')).toContainText('You')
+  await expect(page.locator('.figures__unit').nth(0)).toHaveText('of 590 ranked reps')
+  expect(await rows.count()).toBeLessThanOrEqual(25)
+  expect(await page.locator('.board__gap').count()).toBeGreaterThanOrEqual(2)
+
+  // Record: you cross the line and stay on the board, which stays short.
+  await page.getByRole('button', { name: 'Demo', exact: true }).click()
+  await page.getByRole('button', { name: 'Record today’s attendance' }).click()
+  await expect(page.locator('[data-rep="hannah-kowalski"] .board__status')).toHaveText('Above')
+  expect(await rows.count()).toBeLessThanOrEqual(25)
 })
 
 test('the app still works when storage is blocked', async ({ page }) => {

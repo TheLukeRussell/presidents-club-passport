@@ -40,6 +40,13 @@ export const SUPPLIERS = [
   'Cisco',
 ] as const
 
+// Standings draws a short board once a view has more than `fullUpTo` reps:
+// the top `top`, `aroundLine` reps either side of the President's Club line
+// and `aroundYou` either side of you. The rest fold into gap rows that open
+// `step` at a time. A gap smaller than `minGap` just gets drawn, since its
+// row would take as much room as the rep it hides.
+export const BOARD = { fullUpTo: 25, top: 10, aroundLine: 2, aroundYou: 3, step: 50, minGap: 2 } as const
+
 // The demo opens as this rep when they're in the data. Otherwise it picks
 // someone who crosses the line today (see pickDefaultRep).
 export const DEMO_REP = 'hannah-kowalski'

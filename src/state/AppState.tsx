@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { DEMO_REP, DEMO_SEED, DEMO_TODAY, DEMO_TODAY_SHARE, LINE } from '../config'
 import { DataError, loadAttendance } from '../data/source'
 import type { AttendanceRow } from '../data/types'
+import type { Span } from '../lib/board'
 import { pickDefaultRep, pickTodayAttendees } from '../lib/demo'
 import { buildModel, findRep, withAttendance, type Model, type Rep, type Training } from '../lib/model'
 import { standings, type StandingRow } from '../lib/ranking'
@@ -19,6 +20,14 @@ export type Preview = 'live' | 'loading' | 'empty' | 'error'
 export interface SlideFrom {
   order: string[]
   above: ReadonlySet<string>
+}
+
+// Gaps opened on the short board with Show more, for one team filter and
+// search (the key). Standings drops them once either changes. They live
+// here so they're still open when you come back from a passport.
+export interface OpenedGaps {
+  key: string
+  spans: Span[]
 }
 
 interface Ready {
@@ -47,6 +56,9 @@ interface AppValue {
   clearSlide: () => void
   landing: ReadonlySet<string>
   landed: (email: string) => void
+  openedGaps: OpenedGaps
+  openGap: (key: string, span: Span) => void
+  closeGaps: () => void
   preview: Preview
   setPreview: (preview: Preview) => void
 }
@@ -68,6 +80,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [undo, setUndo] = useState<SavedDemo | null>(null)
   const [slideFrom, setSlideFrom] = useState<SlideFrom | null>(null)
   const [landing, setLanding] = useState<ReadonlySet<string>>(new Set())
+  const [openedGaps, setOpenedGaps] = useState<OpenedGaps>({ key: '', spans: [] })
 
   useEffect(() => {
     const controller = new AbortController()
@@ -148,6 +161,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const clearSlide = useCallback(() => setSlideFrom(null), [])
 
+  const openGap = useCallback(
+    (key: string, span: Span) => setOpenedGaps((current) => ({ key, spans: current.key === key ? [...current.spans, span] : [span] })),
+    [],
+  )
+  const closeGaps = useCallback(() => setOpenedGaps({ key: '', spans: [] }), [])
+
   const landed = useCallback((email: string) => {
     setLanding((current) => {
       if (!current.has(email)) return current
@@ -178,6 +197,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     clearSlide,
     landing,
     landed,
+    openedGaps,
+    openGap,
+    closeGaps,
     preview,
     setPreview,
   }
