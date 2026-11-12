@@ -41,14 +41,24 @@ describe('mrzLines', () => {
     const two = mrzLines(base)[1]
     expect(two.startsWith('HKOWALSKI')).toBe(true)
     expect(two).toContain('COM270101')
-    expect(two).toContain('A05I07R071K28')
+    expect(two).toContain('A05I07R071K028')
+  })
+
+  it('fits a three digit rank and keeps both lines at 44', () => {
+    const [one, two] = mrzLines({ ...base, attended: 8, recorded: 11, percent: 72, rank: 293 })
+    expect(two).toContain('A08I11R072K293')
+    expect(one).toHaveLength(44)
+    expect(two).toHaveLength(44)
+    // Past 999 it holds at 999 instead of spilling.
+    expect(mrzLines({ ...base, rank: 1204 })[1]).toContain('K999')
+    expect(mrzLines({ ...base, rank: 1204 })[1]).toHaveLength(44)
   })
 
   it('strips accents and fills unranked stats', () => {
     const [one, two] = mrzLines({ ...base, name: 'Amélie Gagnon', team: 'Federal', attended: 0, recorded: 0, percent: null, rank: null })
     expect(one).toContain('GAGNON<<AMELIE')
     expect(two).toContain('FED')
-    expect(two).toContain('A00I00R<<<K<<')
+    expect(two).toContain('A00I00R<<<K<<<')
   })
 
   it('gives every team its own three letters', () => {

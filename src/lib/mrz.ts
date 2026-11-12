@@ -72,9 +72,11 @@ export function mrzLines(input: MrzInput): [string, string] {
   const issue = yymmdd(input.issue)
   const expiry = yymmdd(input.expiry)
   // The "personal number" slot holds the stats: A attended, I invited,
-  // R rate as a percent, K rank. Unranked reps get filler for R and K.
+  // R rate as a percent, K rank. Unranked reps get filler for R and K. The
+  // rank gets three digits, so 293rd of 600 fits, and the slot comes out at
+  // exactly its 14 characters.
   const stats = pad(
-    `A${digits(input.attended, 2)}I${digits(input.recorded, 2)}R${digits(input.percent, 3)}K${digits(input.rank, 2)}`,
+    `A${digits(input.attended, 2)}I${digits(input.recorded, 2)}R${digits(input.percent, 3)}K${digits(input.rank, 3)}`,
     14,
   )
 
