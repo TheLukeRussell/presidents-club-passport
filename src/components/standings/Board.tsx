@@ -142,6 +142,8 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
 
   const cut = lineIndex(rows)
   const youAt = rows.findIndex((row) => row.rep.id === viewAsId)
+  // Ranks past 99 need a wider rank column on phones.
+  const wide = rows.some((row) => (row.rank ?? 0) >= 100)
   const pieces = useMemo(() => boardPieces({ count: rows.length, cut, you: youAt, opened, full }), [rows.length, cut, youAt, opened, full])
 
   // The row slide, done FLIP style. The board is already drawn in its new
@@ -281,7 +283,7 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
   return (
     <div className="board-wrap">
       <h2 className="board__title">The board</h2>
-      <table className="board" role="table" aria-label={`Standings${team ? ` for ${team}` : ''}, ranked by rate`}>
+      <table className={`board${wide ? ' board--wide-rank' : ''}`} role="table" aria-label={`Standings${team ? ` for ${team}` : ''}, ranked by rate`}>
         <thead role="rowgroup">
           <tr role="row">
             <th scope="col" role="columnheader">Rank</th>

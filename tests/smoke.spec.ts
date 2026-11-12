@@ -215,8 +215,9 @@ test('the board stays short and every rep is a tap away', async ({ page }) => {
 // Prod size: 600 reps, the sample plus nine made-up copies of it (each rep's
 // record under a first name paired with another sample surname), so ranks
 // run past 99 with big ties. The demo still opens as Hannah, the board stays
-// short with you on it, and Record still slides.
-test('a 600 rep board stays short', async ({ page }) => {
+// short with you on it, Record still slides, and the rank column fits ties
+// like T271 without printing over the name, down to a 320 phone.
+test('a 600 rep board stays short and its ranks fit', async ({ page }, info) => {
   type Row = { rep_email: string; rep_name: string }
   const sample: Row[] = JSON.parse(readFileSync('public/data/attendance.json', 'utf8'))
   const byRep = new Map<string, Row[]>()
@@ -241,6 +242,51 @@ test('a 600 rep board stays short', async ({ page }) => {
   await expect(page.locator('.figures__unit').nth(0)).toHaveText('of 590 ranked reps')
   expect(await rows.count()).toBeLessThanOrEqual(25)
   expect(await page.locator('.board__gap').count()).toBeGreaterThanOrEqual(2)
+  await expect(page.locator('table.board')).toHaveClass(/board--wide-rank/)
+
+  // Every drawn rank sits inside its own cell, clear of the name, the name
+  // clear of the rate, and nothing scrolls sideways.
+  const fits = async (label: string) => {
+    await page.evaluate(() => document.fonts.ready)
+    const r = await page.evaluate(() => {
+      // The right edge of the text you can see, leaving out the screen
+      // reader words, which lay out full width even though they're clipped.
+      const right = (el: Element) => {
+        const range = document.createRange()
+        let edge = -Infinity
+        for (const node of el.childNodes) {
+          if (node.nodeType !== Node.TEXT_NODE && (node as Element).classList?.contains('visually-hidden')) continue
+          range.selectNodeContents(node)
+          edge = Math.max(edge, range.getBoundingClientRect().right)
+        }
+        return edge
+      }
+      const bad: string[] = []
+      for (const row of document.querySelectorAll('[data-rep]')) {
+        const rank = row.querySelector('.board__rank')!
+        const rep = row.querySelector('.board__rep')!
+        const rate = row.querySelector('.board__rate')!
+        const edge = right(rank)
+        if (edge > rank.getBoundingClientRect().right + 0.5 || edge > rep.getBoundingClientRect().left) bad.push(`${rank.textContent} over the name`)
+        if (right(row.querySelector('.board__link')!) > rate.getBoundingClientRect().left + 0.5 && rep.getBoundingClientRect().top === rate.getBoundingClientRect().top) bad.push(`${row.getAttribute('data-rep')} under the rate`)
+      }
+      const wide = [...document.querySelectorAll('[data-rep] .board__rank')].some((el) => /\d{3}/.test(el.textContent ?? ''))
+      return { bad, wide, scroll: document.documentElement.scrollWidth - innerWidth }
+    })
+    expect(r.wide, `${label}: no three digit rank on the board`).toBe(true)
+    expect(r.bad, label).toEqual([])
+    expect(r.scroll, `${label}: the page scrolls sideways`).toBeLessThanOrEqual(0)
+  }
+  if (info.project.name.startsWith('phone')) {
+    const size = page.viewportSize()!
+    for (const width of [320, 390, 440]) {
+      await page.setViewportSize({ width, height: 800 })
+      await fits(`${width} wide`)
+    }
+    await page.setViewportSize(size)
+  } else {
+    await fits('desktop')
+  }
 
   // Record: you cross the line and stay on the board, which stays short.
   await page.getByRole('button', { name: 'Demo', exact: true }).click()

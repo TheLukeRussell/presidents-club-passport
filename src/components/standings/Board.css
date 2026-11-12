@@ -210,6 +210,11 @@
   .board__gap, .board__gap td { display: block; }
   .board__gap td { padding-inline: var(--space-xs); }
   .board__gap-mark { margin-inline: var(--space-sm) var(--space-2xs); }
+  /* Past 99th the rank needs room for four characters, "T999", or it prints
+     over the name. Only then, so a smaller board keeps its wider names. A
+     name that still doesn't fit wraps instead of running under the rate. */
+  .board--wide-rank .board__row { grid-template-columns: 4rem minmax(0, 1.3fr) minmax(0, 1fr) 4rem; }
+  .board__link { white-space: normal; }
 }
 
 @media (prefers-reduced-motion: reduce) {
