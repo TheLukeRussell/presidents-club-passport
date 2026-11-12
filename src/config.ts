@@ -40,6 +40,10 @@ export const SUPPLIERS = [
   'Cisco',
 ] as const
 
+// The demo opens as this rep when they're in the data. Otherwise it picks
+// someone who crosses the line today (see pickDefaultRep).
+export const DEMO_REP = 'hannah-kowalski'
+
 // When the demo records today's attendance, roughly this share of everyone
 // else invited to today's training gets marked attended.
 export const DEMO_TODAY_SHARE = 0.65

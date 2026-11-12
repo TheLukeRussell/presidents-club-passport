@@ -2,7 +2,7 @@
 // the passport and standings everything they need. Screens read it with useApp().
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { DEMO_SEED, DEMO_TODAY, DEMO_TODAY_SHARE, LINE } from '../config'
+import { DEMO_REP, DEMO_SEED, DEMO_TODAY, DEMO_TODAY_SHARE, LINE } from '../config'
 import { DataError, loadAttendance } from '../data/source'
 import type { AttendanceRow } from '../data/types'
 import { pickDefaultRep, pickTodayAttendees } from '../lib/demo'
@@ -103,7 +103,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const model = recording ? withAttendance(baseModel, recording.trainingId, recording.emails) : baseModel
     const ctx: Context = { today: DEMO_TODAY, todayRecorded: Boolean(recording), line: LINE }
     const baseCtx: Context = { ...ctx, todayRecorded: false }
-    const viewAs = (saved.viewAs && findRep(baseModel, saved.viewAs)) || pickDefaultRep(baseModel, baseCtx) || baseModel.reps[0]
+    const viewAs = (saved.viewAs && findRep(baseModel, saved.viewAs)) || pickDefaultRep(baseModel, baseCtx, DEMO_REP) || baseModel.reps[0]
     return { model, ctx, board: standings(model, ctx), viewAs, today }
   }, [baseModel, saved])
 

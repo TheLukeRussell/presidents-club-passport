@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { DEMO_SEED, DEMO_TODAY, DEMO_TODAY_SHARE, LINE, MIN_RECORDED, SUPPLIERS, TEAMS } from '../config'
+import { DEMO_REP, DEMO_SEED, DEMO_TODAY, DEMO_TODAY_SHARE, LINE, MIN_RECORDED, SUPPLIERS, TEAMS } from '../config'
 import type { AttendanceRow } from '../data/types'
 import { pickDefaultRep, pickTodayAttendees } from './demo'
 import { buildModel, entryFor, findRep, withAttendance, type Rep } from './model'
@@ -113,6 +113,8 @@ describe('sample data', () => {
   it('opens the demo as Hannah, 28th, who crosses the line once today is recorded', () => {
     const rep = pickDefaultRep(model, ctx)!
     expect(rep.name).toBe('Hannah Kowalski')
+    // She's pinned in config too, so a bigger export still opens on her.
+    expect(rep.id).toBe(DEMO_REP)
     expect(rep.team).toBe('Communications')
     expect(rowOf(board, rep.name)).toMatchObject({ rank: 28, tied: true })
     expect(repStats(model, rep, ctx)).toMatchObject({ attended: 5, recorded: 7, toLine: { kind: 'needs', n: 1 } })

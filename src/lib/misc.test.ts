@@ -100,6 +100,10 @@ describe('demo picks', () => {
     // Ana is 3/3 (above). Ben 2/3 -> 3/4 crosses. Cy 2/3 -> 3/4 crosses too, Ben wins on name.
     expect(pickDefaultRep(model, ctx)?.name).toBe('Ben')
   })
+  it('opens as the pinned demo rep when they exist, and falls back when not', () => {
+    expect(pickDefaultRep(model, ctx, 'di')?.name).toBe('Di')
+    expect(pickDefaultRep(model, ctx, 'hannah-kowalski')?.name).toBe('Ben')
+  })
 })
 
 describe('format', () => {

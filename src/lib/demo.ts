@@ -2,7 +2,7 @@
 // and which rep the demo opens as. Pure, so the tests can pin it down.
 
 import { MIN_RECORDED } from '../config'
-import { entryFor, type Model, type Rep, type Training } from './model'
+import { entryFor, findRep, type Model, type Rep, type Training } from './model'
 import { unitFor } from './random'
 import { meetsLine, repStats, type Context } from './rules'
 
@@ -24,8 +24,12 @@ export function pickTodayAttendees(
 }
 
 // Open the demo as someone ranked, just under the line, who crosses it once
-// today's attendance is recorded. That's the moment worth showing.
-export function pickDefaultRep(model: Model, ctx: Context): Rep | undefined {
+// today's attendance is recorded. That's the moment worth showing. A rep
+// named in `preferred` (DEMO_REP in config) wins when they're in the data,
+// so a bigger file doesn't swap the demo over to someone else.
+export function pickDefaultRep(model: Model, ctx: Context, preferred?: string): Rep | undefined {
+  const pinned = preferred ? findRep(model, preferred) : undefined
+  if (pinned) return pinned
   const today = model.trainings.find((t) => t.date === ctx.today)
   const candidates = model.reps
     .filter((rep) => !today || entryFor(model, rep, today.id).invited)
