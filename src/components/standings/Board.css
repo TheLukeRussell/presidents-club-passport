@@ -20,6 +20,10 @@
   border-collapse: separate;
   border-spacing: 0;
   font-variant-numeric: tabular-nums;
+  /* No scroll anchoring here. Safari anchored to a row mid-slide, transform
+     and all, and scrolled the page 380px away while it played. The row
+     slide puts the page where it wants it. */
+  overflow-anchor: none;
 }
 
 .board thead th {

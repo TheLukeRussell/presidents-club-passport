@@ -163,13 +163,6 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
       clearSlide()
       return
     }
-    // Bring your row to the middle of the screen first, so the slide plays
-    // where you can see it. Everything below is measured after the scroll,
-    // so the slide maths still holds.
-    const you = body.querySelector<HTMLElement>('.board__row.is-you')
-    const youBox = you?.getBoundingClientRect()
-    if (you && youBox && (youBox.top < 0 || youBox.bottom > window.innerHeight)) you.scrollIntoView({ block: 'center' })
-
     // Every row the board drew, measured once: reps, gaps and the line.
     const kids = Array.from(body.children) as HTMLElement[]
     const boxes = kids.map((el) => el.getBoundingClientRect())
@@ -202,6 +195,22 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
         if (k === oldCut) y += cutHeight + space
         from.set(before[k], { top: y, folded: false })
         y += (now.get(before[k])?.height ?? rowHeight) + space
+      }
+    }
+
+    // Bring your row on screen so the slide plays where you can see it:
+    // centred between where it was and where it lands when both fit, and
+    // never with the new spot off screen. The slide only uses differences,
+    // so scrolling after measuring doesn't throw it off.
+    const mine = kids.findIndex((el) => el.dataset.rep === viewAsId)
+    if (mine !== -1) {
+      const to = boxes[mine]
+      const was = from.get(viewAsId)?.top ?? to.top
+      const top = Math.min(to.top, was)
+      const bottom = Math.max(to.bottom, was + to.height)
+      if (top < 0 || bottom > window.innerHeight) {
+        const shift = Math.min(Math.max((top + bottom - window.innerHeight) / 2, to.bottom - window.innerHeight), to.top)
+        window.scrollBy(0, shift)
       }
     }
 
