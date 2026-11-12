@@ -2,7 +2,7 @@
 // President's Club line drawn across it. Team filter and name search live in
 // the URL (#/standings?team=netsec&q=kai) so a filtered view can be shared.
 
-import { useEffect, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { TEAMS } from '../../config'
 import type { Span } from '../../lib/board'
@@ -27,7 +27,10 @@ export function StandingsScreen() {
   // commits URL changes in a transition, so the box snapped back between
   // keys. Clear search is the only other thing that changes it here.
   const [query, setQuery] = useState(() => params.get('q') ?? '')
-  const needle = query.trim().toLowerCase()
+  // The board trails the box by a frame or two. At a few hundred reps the
+  // first letter brings in a hundred rows, and the box shouldn't wait on them.
+  const shownQuery = useDeferredValue(query)
+  const needle = shownQuery.trim().toLowerCase()
 
   const update = (key: string, value: string | null) =>
     setParams(
@@ -48,9 +51,9 @@ export function StandingsScreen() {
   }
 
   // The figures follow the team filter. Search only narrows the board.
-  const teamRows = team ? board.filter((row) => row.rep.team === team) : board
-  const rows = needle ? teamRows.filter((row) => row.rep.name.toLowerCase().includes(needle)) : teamRows
-  const figures = figuresFor(teamRows, model, ctx)
+  const teamRows = useMemo(() => (team ? board.filter((row) => row.rep.team === team) : board), [board, team])
+  const rows = useMemo(() => (needle ? teamRows.filter((row) => row.rep.name.toLowerCase().includes(needle)) : teamRows), [teamRows, needle])
+  const figures = useMemo(() => figuresFor(teamRows, model, ctx), [teamRows, model, ctx])
   const scope = team ? `${team} reps` : 'reps'
 
   // Gaps opened with Show more belong to this filter and search. Change
@@ -114,7 +117,7 @@ export function StandingsScreen() {
           rows={rows}
           viewAsId={viewAs.id}
           team={team}
-          query={query}
+          query={shownQuery}
           full={Boolean(needle)}
           opened={opened}
           onOpen={(span) => openGap(view, span)}
