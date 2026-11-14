@@ -63,7 +63,9 @@
 .board__row.is-you .board__rank { background: var(--color-board-signal); color: var(--color-board-signal-ink); }
 
 .board__rep { font-weight: 700; }
-.board__rep .tag { margin-left: var(--space-xs); }
+/* Top aligned, so the pill sits inside the name's line instead of nudging
+   your row a fraction of a pixel taller than the rest. */
+.board__rep .tag { margin-left: var(--space-xs); vertical-align: top; }
 
 /* The name is the link; it stretches over the whole row so any tap opens
    the passport. */
@@ -221,11 +223,37 @@
      which lays the old gaps out at that height, starts true. */
   .board__gap-in { column-gap: var(--space-xs); }
   .board__gap-more { padding-inline: var(--space-sm); }
-  /* Past 99th the rank needs room for four characters, "T999", or it prints
-     over the name. Only then, so a smaller board keeps its wider names. A
-     name that still doesn't fit wraps instead of running under the rate. */
-  .board--wide-rank .board__row { grid-template-columns: 4rem minmax(0, 1.3fr) minmax(0, 1fr) 4rem; }
+  /* Past 99th a tie takes four characters, "T254". Those step down a size so
+     even T999 fits the rank column, inside your Ember block's padding too,
+     and the column stays put, so every row keeps one height. A name that
+     still doesn't fit wraps instead of running under the rate. */
+  .board__rank--long { font-size: var(--text-lg); letter-spacing: -0.04em; }
   .board__link { white-space: normal; }
+}
+
+/* Narrow phones, under 384px. A long name and the You tag don't fit on one
+   line, so the tag moves into your Ember block, under the rank, and the
+   name gets the line to itself. The labels drop a size and Stamps gets
+   more of the row, so "Stamps 24 of 24" and "Streak 24" still share a line
+   at 360. Every row keeps one height. */
+@media (max-width: 23.99rem) {
+  .board__row { grid-template-columns: 3rem minmax(0, 1.65fr) minmax(0, 1fr) 4rem; }
+  .board__team::before, .board__stamps::before, .board__streak::before { font-size: var(--text-xs); }
+  .board__row.is-you .tag--you {
+    position: absolute;
+    left: var(--space-xs);
+    bottom: var(--space-sm);
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    background: none;
+    /* Taps go through to the row's link, like everywhere else on the row. */
+    pointer-events: none;
+  }
+}
+/* Under 360 even that won't fit, so every label sits over its value. */
+@media (max-width: 22.49rem) {
+  .board__team::before, .board__stamps::before, .board__streak::before { display: block; }
 }
 
 /* The row slide: whatever moves rides over whatever doesn't. Reps go over

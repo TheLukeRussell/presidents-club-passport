@@ -61,13 +61,15 @@ function ChangeCell({ change }: { change: Change }) {
 // the rows that stayed put.
 const RepRow = memo(function RepRow({ row, you }: { row: StandingRow; you: boolean }) {
   const status = row.rank === null ? 'Unranked' : row.above ? 'Above' : 'Below'
+  // Four characters, like T254, take a smaller size to fit a phone's rank column.
+  const long = row.rank !== null && `${row.tied ? 'T' : ''}${row.rank}`.length > 3
   return (
     <tr
       role="row"
       data-rep={row.rep.id}
       className={`board__row${row.rank === null ? ' is-unranked' : row.above ? ' is-above' : ' is-below'}${you ? ' is-you' : ''}`}
     >
-      <td role="cell" className="board__rank">
+      <td role="cell" className={`board__rank${long ? ' board__rank--long' : ''}`}>
         {row.rank === null ? (
           <>
             <span aria-hidden="true">NR</span>
@@ -147,8 +149,6 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
 
   const cut = lineIndex(rows)
   const youAt = rows.findIndex((row) => row.rep.id === viewAsId)
-  // Ranks past 99 need a wider rank column on phones.
-  const wide = rows.some((row) => (row.rank ?? 0) >= 100)
   const pieces = useMemo(() => boardPieces({ count: rows.length, cut, you: youAt, opened, full }), [rows.length, cut, youAt, opened, full])
 
   // How tall each rep row was the last time the board drew, at this window
@@ -374,7 +374,7 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
   return (
     <div className="board-wrap">
       <h2 className="board__title">The board</h2>
-      <table className={`board${wide ? ' board--wide-rank' : ''}`} role="table" aria-label={`Standings${team ? ` for ${team}` : ''}, ranked by rate`}>
+      <table className="board" role="table" aria-label={`Standings${team ? ` for ${team}` : ''}, ranked by rate`}>
         <thead role="rowgroup">
           <tr role="row">
             <th scope="col" role="columnheader">Rank</th>
