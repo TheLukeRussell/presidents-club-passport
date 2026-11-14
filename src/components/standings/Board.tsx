@@ -28,6 +28,11 @@ interface Props {
 
 const SLIDE_MS = 720
 const EASE_OUT = 'cubic-bezier(0.16, 1, 0.3, 1)'
+// Reps coming out of a gap fade in once the slide is most of the way
+// there. Anything still passing over them is opaque and on top, so waiting
+// longer would only leave holes in the board.
+const FADE_DELAY = SLIDE_MS / 4
+const FADE_MS = SLIDE_MS / 2
 
 function ChangeCell({ change }: { change: Change }) {
   switch (change.kind) {
@@ -146,14 +151,22 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
   const wide = rows.some((row) => (row.rank ?? 0) >= 100)
   const pieces = useMemo(() => boardPieces({ count: rows.length, cut, you: youAt, opened, full }), [rows.length, cut, youAt, opened, full])
 
+  // How tall each rep row was the last time the board drew, at this window
+  // width. A rep that folds away on Record isn't there to measure any more,
+  // and the reps under it on the old board need its real height.
+  const lastHeights = useRef<{ width: number; heights: Map<string, number> } | null>(null)
+
   // The row slide, done FLIP style. The board is already drawn in its new
   // order. Work out where each row sat before the recording by drawing the
   // old board again (same reps, filter and opened gaps, the line where it
   // was) and laying it out from the top with each row's real height. Then
-  // jump each row back there with a transform and let it glide home. Reps
-  // that were folded into a gap fade in, nudged from the side their gap was
-  // on; reps that fold away just go. It plays once per recording, even when
-  // React runs the effect twice.
+  // jump each row back there with a transform and let it glide home, all
+  // together. The line and the gap rows slide too. Whatever moves rides
+  // over whatever doesn't (reps over the line and gaps, you over everyone),
+  // and every row is opaque, so rows passing each other never print text
+  // over text. Reps that were folded into a gap fade in where they land,
+  // underneath, once the slide is mostly done; reps that fold away just go.
+  // It plays once per recording, even when React runs the effect twice.
   const played = useRef<SlideFrom | null>(null)
   useLayoutEffect(() => {
     if (!slideFrom || played.current === slideFrom) return
@@ -177,60 +190,129 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
     const cutHeight = heightOf('.board__cut') ?? 0
     // The space between two neighbouring rows (none in a table, or on phones today).
     const space = kids.length > 1 ? boxes[1].top - boxes[0].bottom : 0
+    const last = lastHeights.current?.width === window.innerWidth ? lastHeights.current.heights : undefined
+    const heightWas = (id: string) => now.get(id)?.height ?? last?.get(id) ?? rowHeight
 
     const ids = new Set(rows.map((row) => row.rep.id))
     const before = slideFrom.order.filter((id) => ids.has(id))
     const oldCut = before.filter((id) => slideFrom.above.has(id)).length
     const oldPieces = boardPieces({ count: before.length, cut: oldCut, you: before.indexOf(viewAsId), opened, full })
     const from = new Map<string, { top: number; folded: boolean }>()
+    const oldGaps: { start: number; end: number; top: number }[] = []
+    let cutWas: number | undefined
     let y = boxes[0]?.top ?? 0
+    const line = () => {
+      cutWas = y
+      y += cutHeight + space
+    }
     for (const piece of oldPieces) {
       if (piece.kind === 'gap') {
-        if (piece.start === oldCut) y += cutHeight + space
+        if (piece.start === oldCut) line()
         for (let k = piece.start; k < piece.end; k++) from.set(before[k], { top: y, folded: true })
+        oldGaps.push({ start: piece.start, end: piece.end, top: y })
         y += gapHeight + space
         continue
       }
       for (let k = piece.start; k < piece.end; k++) {
-        if (k === oldCut) y += cutHeight + space
+        if (k === oldCut) line()
         from.set(before[k], { top: y, folded: false })
-        y += (now.get(before[k])?.height ?? rowHeight) + space
+        y += heightWas(before[k]) + space
       }
     }
+    // Nobody under the line: it sat at the very bottom.
+    cutWas ??= y
+
+    // Each gap row slides from the old gap that covered most of the same
+    // places on the board. One with nothing to match fades in like a rep.
+    const gapWas = new Map<HTMLElement, number>()
+    const gapRows = kids.filter((el) => el.classList.contains('board__gap'))
+    const taken = new Set<number>()
+    pieces
+      .filter((piece) => piece.kind === 'gap')
+      .forEach((gap, g) => {
+        let best = -1
+        let most = 0
+        oldGaps.forEach((old, j) => {
+          const shared = Math.min(old.end, gap.end) - Math.max(old.start, gap.start)
+          if (!taken.has(j) && shared > most) [best, most] = [j, shared]
+        })
+        if (best === -1 || !gapRows[g]) return
+        taken.add(best)
+        gapWas.set(gapRows[g], oldGaps[best].top)
+      })
 
     // Bring your row on screen so the slide plays where you can see it:
-    // centred between where it was and where it lands when both fit, and
-    // never with the new spot off screen. The slide only uses differences,
-    // so scrolling after measuring doesn't throw it off.
+    // centred between where it was and where it lands when both fit. When
+    // they don't, the new spot wins, with a row (or the page's scroll
+    // padding, if that's more) above it and a row below, never flush
+    // against an edge. The slide only uses differences, so scrolling after
+    // measuring doesn't throw it off.
     const mine = kids.findIndex((el) => el.dataset.rep === viewAsId)
     if (mine !== -1) {
       const to = boxes[mine]
       const was = from.get(viewAsId)?.top ?? to.top
       const top = Math.min(to.top, was)
       const bottom = Math.max(to.bottom, was + to.height)
-      if (top < 0 || bottom > window.innerHeight) {
-        const shift = Math.min(Math.max((top + bottom - window.innerHeight) / 2, to.bottom - window.innerHeight), to.top)
-        window.scrollBy(0, shift)
+      const screen = window.innerHeight
+      if (top < 0 || bottom > screen) {
+        const above = Math.max(rowHeight, parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0)
+        const centred = (top + bottom - screen) / 2
+        window.scrollBy(0, Math.min(Math.max(centred, to.bottom + rowHeight - screen), to.top - above))
       }
     }
 
-    let index = 0
-    kids.forEach((el, k) => {
-      const start = el.dataset.rep ? from.get(el.dataset.rep) : undefined
-      if (!start) return
-      const dy = start.top - boxes[k].top
-      const timing: KeyframeAnimationOptions = { duration: SLIDE_MS, easing: EASE_OUT, delay: Math.min(index++, 15) * 20, fill: 'backwards' }
-      if (start.folded) {
-        // Only a row's height of travel. Coming all the way from the gap
-        // stacked them on the gap row, half faded, text over text.
-        const nudge = Math.max(-rowHeight, Math.min(rowHeight, dy))
-        el.animate([{ transform: `translateY(${nudge}px)`, opacity: 0 }, { transform: 'translateY(0)', opacity: 1 }], timing)
-      } else if (Math.abs(dy) >= 1) {
-        el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0)' }], timing)
+    // A slide cut short by another one can leave a row lifted. Start clean.
+    kids.forEach((el) => el.classList.remove('is-sliding'))
+    const slide = (el: HTMLElement, dy: number) => {
+      el.classList.add('is-sliding')
+      const motion = el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: SLIDE_MS, easing: EASE_OUT })
+      const settle = () => {
+        if (played.current === slideFrom) el.classList.remove('is-sliding')
       }
+      motion.addEventListener('finish', settle)
+      motion.addEventListener('cancel', settle)
+    }
+    const fadeIn = (el: HTMLElement) =>
+      el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: FADE_MS, delay: FADE_DELAY, easing: 'ease-out', fill: 'backwards' })
+
+    kids.forEach((el, k) => {
+      let top: number | undefined
+      if (el.dataset.rep) {
+        const start = from.get(el.dataset.rep)
+        if (start?.folded) {
+          fadeIn(el)
+          return
+        }
+        top = start?.top
+      } else if (el.classList.contains('board__cut')) {
+        top = cutWas
+      } else if (el.classList.contains('board__gap')) {
+        top = gapWas.get(el)
+        if (top === undefined) {
+          fadeIn(el)
+          return
+        }
+      }
+      if (top !== undefined && Math.abs(top - boxes[k].top) >= 0.5) slide(el, top - boxes[k].top)
     })
     clearSlide()
-  }, [slideFrom, reduced, clearSlide, rows, viewAsId, opened, full])
+  }, [slideFrom, reduced, clearSlide, rows, viewAsId, opened, full, pieces])
+
+  // After every draw (and after the slide above has read the last one),
+  // note how tall each rep row is. Search draws everyone, so nothing folds
+  // and there's nothing to keep.
+  useLayoutEffect(() => {
+    const body = bodyRef.current
+    if (!body || full || reduced) {
+      lastHeights.current = null
+      return
+    }
+    const heights = new Map<string, number>()
+    for (const el of body.children as HTMLCollectionOf<HTMLElement>) {
+      if (el.dataset.rep) heights.set(el.dataset.rep, el.getBoundingClientRect().height)
+    }
+    lastHeights.current = { width: window.innerWidth, heights }
+  })
 
   // Show more puts focus on the first rep it brings in, right where the gap
   // row was, so the button going away never drops focus to the page.

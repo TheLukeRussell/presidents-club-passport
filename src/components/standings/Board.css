@@ -96,7 +96,9 @@
 .move--same, .move--new { color: var(--color-board-muted); font-size: var(--text-sm); }
 
 /* The cut line: an Ink tab standing on a dashed Ink rule. Everything above
-   the tab is in the club. */
+   the tab is in the club. White like the sheet, so it hides what it passes
+   over when it slides. */
+.board__cut { position: relative; background: var(--color-board); }
 .board__cut td {
   padding: var(--space-md) 0 0;
   border-bottom: 2px dashed var(--color-board-line);
@@ -119,7 +121,7 @@
    sheet and hairline as a rep, on Fog when it's below the line, so the band
    under the line doesn't break. A column of dots stands in for the ranks it
    skips, then the count, then an outline button like the team choices. */
-.board__gap { background: var(--color-board); }
+.board__gap { position: relative; background: var(--color-board); }
 .board__gap.is-below { background: var(--color-board-below); }
 .board__gap td {
   padding: var(--space-2xs) var(--space-sm);
@@ -225,6 +227,13 @@
   .board--wide-rank .board__row { grid-template-columns: 4rem minmax(0, 1.3fr) minmax(0, 1fr) 4rem; }
   .board__link { white-space: normal; }
 }
+
+/* The row slide: whatever moves rides over whatever doesn't. Reps go over
+   the line and the gaps, and your row over everyone. Board.tsx takes the
+   class off when the slide ends. */
+.board tbody > .is-sliding { z-index: var(--z-base); }
+.board tbody > .board__row.is-sliding { z-index: calc(var(--z-base) + 1); }
+.board tbody > .board__row.is-sliding.is-you { z-index: calc(var(--z-base) + 2); }
 
 @media (prefers-reduced-motion: reduce) {
   .board__row { transition: none; }
