@@ -154,10 +154,11 @@ test('the demo flow works end to end', async ({ page }, info) => {
 // Past 25 reps the board is short: the top 10, two reps either side of the
 // line and three either side of you, with a gap row for each run left out.
 // A team of 12 shows everyone, a search shows every match, and the gaps you
-// open stay open until the filter or the search changes.
+// open stay open until the team filter changes, searching or not.
 test('the board stays short and every rep is a tap away', async ({ page }) => {
   const rows = page.locator('[data-rep]')
   const gaps = page.locator('.board__gap')
+  const table = page.getByRole('table', { name: /^Standings/ })
   await page.goto('./#/standings')
 
   // You're on it without opening anything, and the line has a rep either side.
@@ -165,19 +166,26 @@ test('the board stays short and every rep is a tap away', async ({ page }) => {
   await expect(rows).toHaveCount(17)
   await expect(gaps).toHaveText([/^14 more reps/, /^29 more reps/])
   expect(await page.locator('.board__cut').evaluate((el) => [el.previousElementSibling?.hasAttribute('data-rep'), el.nextElementSibling?.hasAttribute('data-rep')])).toEqual([true, true])
+  // Screen readers hear that this is only part of the board.
+  await expect(table).toHaveAccessibleDescription(/^Showing 17 of 60 reps\./)
 
   // A gap is a row of the table with one cell across all eight columns, and
-  // its button says what it opens. Open it from the keyboard: focus lands on
-  // the first rep it brings in, where the gap was.
+  // its button says what it opens, which places included, so no two gap
+  // buttons sound the same. Open it from the keyboard: focus lands on the
+  // first rep it brings in, where the gap was.
   const gap = page.getByRole('row', { name: /14 more reps/ })
   await expect(gap.getByRole('cell')).toHaveAttribute('colspan', '8')
   const more = gap.getByRole('button', { name: 'Show all 14' })
+  await expect(more).toHaveText('Show all 14')
+  await expect(more).toHaveAccessibleName('Show all 14, reps 11 to 24 of 60')
   await expect(more).toHaveAccessibleDescription('14 more reps')
+  await expect(page.getByRole('button', { name: 'Show all 29' })).toHaveAccessibleName('Show all 29, reps 32 to 60 of 60')
   await more.focus()
   await page.keyboard.press('Enter')
   await expect(rows).toHaveCount(31)
   await expect(gaps).toHaveCount(1)
   await expect(page.getByRole('link', { name: 'Brianna Cole' })).toBeFocused()
+  await expect(table).toHaveAccessibleDescription(/^Showing 31 of 60 reps\./)
 
   // Still open after a trip to a passport and back.
   await page.getByRole('link', { name: 'Brianna Cole' }).click()
@@ -193,7 +201,10 @@ test('the board stays short and every rep is a tap away', async ({ page }) => {
   await expect(rows).toHaveCount(17)
   await expect(gaps).toHaveCount(2)
 
-  // Search shows every match, in rank order, with no gaps.
+  // Search shows every match, in rank order, with no gaps. Open a gap
+  // first: it's still open once the search is cleared, typed or not.
+  await page.getByRole('button', { name: 'Show all 14' }).click()
+  await expect(rows).toHaveCount(31)
   const data: { rep_name: string }[] = await page.evaluate(() => fetch('data/attendance.json').then((r) => r.json()))
   const matches = new Set(data.map((r) => r.rep_name).filter((name) => name.toLowerCase().includes('e'))).size
   expect(matches).toBeGreaterThan(25)
@@ -201,22 +212,31 @@ test('the board stays short and every rep is a tap away', async ({ page }) => {
   await search.fill('e')
   await expect(rows).toHaveCount(matches)
   await expect(gaps).toHaveCount(0)
+  await expect(table).not.toHaveAttribute('aria-describedby')
   const ranks = (await page.locator('[data-rep] .board__rank').allTextContents()).map((t) => (t.includes('Not ranked') ? Infinity : Number(t.replace(/\D/g, ''))))
   expect(ranks).toEqual([...ranks].sort((a, b) => a - b))
   await search.fill('')
-  await expect(rows).toHaveCount(17)
+  await expect(rows).toHaveCount(31)
+  await expect(gaps).toHaveCount(1)
+  await search.pressSequentially('zzz')
+  await expect(page.getByText('Nobody named “zzz”')).toBeVisible()
+  await page.getByRole('button', { name: 'Clear search' }).click()
+  await expect(rows).toHaveCount(31)
 
   // The last gap runs down to the new hire, unranked at the bottom.
   await page.getByRole('button', { name: 'Show all 29' }).click()
   await expect(page.locator('[data-rep="clara-dubois"] .board__status')).toHaveText('Unranked')
-  await expect(rows).toHaveCount(46)
+  await expect(rows).toHaveCount(60)
+  await expect(gaps).toHaveCount(0)
+  await expect(table).not.toHaveAttribute('aria-describedby')
 })
 
 // Prod size: 600 reps, the sample plus nine made-up copies of it (each rep's
 // record under a first name paired with another sample surname), so ranks
 // run past 99 with big ties. The demo still opens as Hannah, the board stays
-// short with you on it, Record still slides, and the rank column fits ties
-// like T271 without printing over the name, down to a 320 phone.
+// short with you on it, and the rank column fits ties like T271 without
+// printing over the name, down to a 320 phone, with every row one height.
+// Record still slides, and nothing prints text over text while it does.
 test('a 600 rep board stays short and its ranks fit', async ({ page }, info) => {
   type Row = { rep_email: string; rep_name: string }
   const sample: Row[] = JSON.parse(readFileSync('public/data/attendance.json', 'utf8'))
@@ -242,11 +262,17 @@ test('a 600 rep board stays short and its ranks fit', async ({ page }, info) => 
   await expect(page.locator('.figures__unit').nth(0)).toHaveText('of 590 ranked reps')
   expect(await rows.count()).toBeLessThanOrEqual(25)
   expect(await page.locator('.board__gap').count()).toBeGreaterThanOrEqual(2)
-  await expect(page.locator('table.board')).toHaveClass(/board--wide-rank/)
+  await expect(page.getByRole('table', { name: /^Standings/ })).toHaveAccessibleDescription(new RegExp(`^Showing ${await rows.count()} of 600 reps\\.`))
+  // Two gaps can open the same number of reps. Their buttons still say
+  // which places they open, so a screen reader can tell them apart.
+  const names = await page.locator('.board__gap-more').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')))
+  expect(new Set(names).size).toBe(names.length)
+  for (const name of names) expect(name).toMatch(/^Show (\d+ more|all \d+|both), reps \d+ (to|and) \d+ of 600$/)
 
   // Every drawn rank sits inside its own cell, clear of the name, the name
-  // clear of the rate, and nothing scrolls sideways.
-  const fits = async (label: string) => {
+  // clear of the rate, and nothing scrolls sideways. A four character rank
+  // fits your Ember block without eating into its padding, even T999.
+  const fits = async (label: string, oneHeight: boolean) => {
     await page.evaluate(() => document.fonts.ready)
     const r = await page.evaluate(() => {
       // The right edge of the text you can see, leaving out the screen
@@ -261,39 +287,107 @@ test('a 600 rep board stays short and its ranks fit', async ({ page }, info) => 
         }
         return edge
       }
+      const inside = (cell: Element) => cell.getBoundingClientRect().right - parseFloat(getComputedStyle(cell).paddingRight) + 0.5
       const bad: string[] = []
       for (const row of document.querySelectorAll('[data-rep]')) {
         const rank = row.querySelector('.board__rank')!
         const rep = row.querySelector('.board__rep')!
         const rate = row.querySelector('.board__rate')!
         const edge = right(rank)
-        if (edge > rank.getBoundingClientRect().right + 0.5 || edge > rep.getBoundingClientRect().left) bad.push(`${rank.textContent} over the name`)
+        if (edge > inside(rank) || edge > rep.getBoundingClientRect().left) bad.push(`${rank.textContent} over the name`)
         if (right(row.querySelector('.board__link')!) > rate.getBoundingClientRect().left + 0.5 && rep.getBoundingClientRect().top === rate.getBoundingClientRect().top) bad.push(`${row.getAttribute('data-rep')} under the rate`)
       }
+      // The widest rank there could be, in your row's rank cell.
+      const mine = document.querySelector('.board__row.is-you .board__rank')!
+      const was = [...mine.childNodes].map((node) => node.cloneNode(true))
+      const wasClass = mine.className
+      mine.replaceChildren('T999')
+      mine.classList.add('board__rank--long')
+      if (right(mine) > inside(mine)) bad.push('T999 in your Ember block')
+      mine.replaceChildren(...was)
+      mine.className = wasClass
       const wide = [...document.querySelectorAll('[data-rep] .board__rank')].some((el) => /\d{3}/.test(el.textContent ?? ''))
-      // Gap rows stay one line, so they're all one height for the row slide.
+      // Gap rows stay one line, so they're all one height.
       const gaps = new Set([...document.querySelectorAll('.board__gap')].map((el) => Math.round(el.getBoundingClientRect().height)))
-      return { bad, wide, gaps: gaps.size, scroll: document.documentElement.scrollWidth - innerWidth }
+      const heights = new Set([...document.querySelectorAll('[data-rep]')].map((el) => Math.round(el.getBoundingClientRect().height * 10) / 10))
+      return { bad, wide, gaps: gaps.size, heights: [...heights], scroll: document.documentElement.scrollWidth - innerWidth }
     })
     expect(r.wide, `${label}: no three digit rank on the board`).toBe(true)
-    expect(r.gaps, `${label}: gap rows of different heights`).toBe(1)
+    expect(r.gaps, `${label}: gap rows of different heights`).toBeLessThanOrEqual(1)
     expect(r.bad, label).toEqual([])
     expect(r.scroll, `${label}: the page scrolls sideways`).toBeLessThanOrEqual(0)
+    // From 360 up every rep row on a phone is one height, whatever its
+    // stamps, team or rank. At 320 that holds too until a name is too long
+    // for the line, like Kendra Fitzgerald here: names wrap, never cut off.
+    if (oneHeight) expect(r.heights, `${label}: rep rows of different heights`).toHaveLength(1)
   }
   if (info.project.name.startsWith('phone')) {
     const size = page.viewportSize()!
-    for (const width of [320, 390, 440]) {
+    const search = page.getByLabel('Search by name')
+    for (const width of [320, 360, 390, 440]) {
       await page.setViewportSize({ width, height: 800 })
-      await fits(`${width} wide`)
+      await fits(`${width} wide`, width >= 360)
+      // A search draws hundreds of rows, you included.
+      await search.fill('a')
+      await expect(page.locator('.board__gap')).toHaveCount(0)
+      expect(await rows.count()).toBeGreaterThan(300)
+      await fits(`${width} wide, every rep with an a`, width >= 360)
+      await search.fill('')
+      await expect(page.locator('.board__gap')).not.toHaveCount(0)
     }
     await page.setViewportSize(size)
   } else {
-    await fits('desktop')
+    await fits('desktop', false)
   }
 
-  // Record: you cross the line and stay on the board, which stays short.
+  // Record, frozen mid slide. Every rep drawn before and after starts right
+  // where it was, and wherever two rows cross, the one on top is opaque.
+  await page.evaluate(() => document.querySelector('.board__row.is-you')!.scrollIntoView({ block: 'center' }))
   await page.getByRole('button', { name: 'Demo', exact: true }).click()
+  const spots = () =>
+    page.evaluate(() => {
+      const body = document.querySelector('.board tbody')!
+      const top = body.getBoundingClientRect().top
+      return Object.fromEntries([...body.querySelectorAll<HTMLElement>('[data-rep]')].map((el) => [el.dataset.rep!, el.getBoundingClientRect().top - top]))
+    })
+  const before = await spots()
   await page.getByRole('button', { name: 'Record today’s attendance' }).click()
+  const slide = await page.evaluate(() => {
+    const body = document.querySelector('.board tbody')!
+    const anims = document.getAnimations().filter((a) => body.contains((a.effect as KeyframeEffect | null)?.target ?? null))
+    anims.forEach((a) => a.pause())
+    const frames: string[] = []
+    const starts: Record<string, number> = {}
+    for (const t of [0, 60, 120, 200, 300, 450]) {
+      anims.forEach((a) => (a.currentTime = t))
+      const top = body.getBoundingClientRect().top
+      const kids = [...body.children] as HTMLElement[]
+      const boxes = kids.map((el) => {
+        const box = el.getBoundingClientRect()
+        const style = getComputedStyle(el)
+        const fill = style.backgroundColor.match(/[\d.]+/g)!.map(Number)
+        return { el, top: box.top, bottom: box.bottom, opacity: Number(style.opacity), z: style.zIndex === 'auto' ? 0 : Number(style.zIndex), solid: (fill[3] ?? 1) === 1 }
+      })
+      if (t === 0) for (const b of boxes) if (b.el.dataset.rep) starts[b.el.dataset.rep] = b.top - top
+      boxes.forEach((a, i) =>
+        boxes.slice(i + 1).forEach((b) => {
+          if (Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) < 1 || a.opacity < 0.02 || b.opacity < 0.02) return
+          // Higher z-index on top; the same, the later row.
+          const over = a.z > b.z ? a : b
+          if (over.opacity < 0.99 || !over.solid) frames.push(`${t}ms: ${over.el.dataset.rep ?? over.el.className} shows through`)
+        }),
+      )
+    }
+    anims.forEach((a) => a.finish())
+    return { count: anims.length, frames, starts }
+  })
+  expect(slide.count).toBeGreaterThan(0)
+  expect(slide.frames).toEqual([])
+  const moved = Object.keys(before).filter((id) => id in slide.starts)
+  expect(moved.length).toBeGreaterThan(3)
+  for (const id of moved) expect(Math.abs(slide.starts[id] - before[id]), `${id} starts off its old spot`).toBeLessThan(0.5)
+
+  // You cross the line and stay on the board, which stays short.
   await expect(page.locator('[data-rep="hannah-kowalski"] .board__status')).toHaveText('Above')
   expect(await rows.count()).toBeLessThanOrEqual(25)
 })
