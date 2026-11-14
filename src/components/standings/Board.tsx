@@ -115,12 +115,15 @@ const RepRow = memo(function RepRow({ row, you }: { row: StandingRow; you: boole
 
 // A run of reps the short board leaves out. Like the line, it's one cell
 // across every column, so the table still reads row by row. It says how many
-// it hides, and its button opens the next chunk from the top.
-function GapRow({ gap, below, onOpen }: { gap: Piece; below: boolean; onOpen: (gap: Piece, span: Span) => void }) {
+// it hides, and its button opens the next chunk from the top. The button's
+// name also says which places it opens, so two gaps never sound the same.
+function GapRow({ gap, below, total, onOpen }: { gap: Piece; below: boolean; total: number; onOpen: (gap: Piece, span: Span) => void }) {
   const count = gap.end - gap.start
   const next = openFrom(gap)
   const all = next.end === gap.end
   const id = `board-gap-${gap.end}`
+  const label = !all ? `Show ${next.end - next.start} more` : count === 2 ? 'Show both' : `Show all ${count}`
+  const places = count === 2 && all ? `${next.start + 1} and ${next.end}` : `${next.start + 1} to ${next.end}`
   return (
     <tr role="row" className={`board__gap${below ? ' is-below' : ''}`}>
       <td role="cell" colSpan={8}>
@@ -133,8 +136,14 @@ function GapRow({ gap, below, onOpen }: { gap: Piece; below: boolean; onOpen: (g
           <span id={id} className="board__gap-count">
             {count} more {count === 1 ? 'rep' : 'reps'}
           </span>
-          <button type="button" className="btn btn--quiet board__gap-more" aria-describedby={id} onClick={() => onOpen(gap, next)}>
-            {!all ? `Show ${next.end - next.start} more` : count === 2 ? 'Show both' : `Show all ${count}`}
+          <button
+            type="button"
+            className="btn btn--quiet board__gap-more"
+            aria-label={`${label}, reps ${places} of ${total}`}
+            aria-describedby={id}
+            onClick={() => onOpen(gap, next)}
+          >
+            {label}
           </button>
         </div>
       </td>
@@ -150,6 +159,7 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
   const cut = lineIndex(rows)
   const youAt = rows.findIndex((row) => row.rep.id === viewAsId)
   const pieces = useMemo(() => boardPieces({ count: rows.length, cut, you: youAt, opened, full }), [rows.length, cut, youAt, opened, full])
+  const drawn = pieces.reduce((sum, piece) => sum + (piece.kind === 'rows' ? piece.end - piece.start : 0), 0)
 
   // How tall each rep row was the last time the board drew, at this window
   // width. A rep that folds away on Record isn't there to measure any more,
@@ -361,7 +371,7 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
     if (piece.kind === 'gap') {
       if (piece.start === cut) body.push(cutRow)
       // Keyed by its end: it shrinks from the top as it opens.
-      body.push(<GapRow key={`gap-${piece.end}`} gap={piece} below={piece.start >= cut} onOpen={open} />)
+      body.push(<GapRow key={`gap-${piece.end}`} gap={piece} below={piece.start >= cut} total={rows.length} onOpen={open} />)
       continue
     }
     for (let i = piece.start; i < piece.end; i++) {
@@ -374,7 +384,18 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
   return (
     <div className="board-wrap">
       <h2 className="board__title">The board</h2>
-      <table className="board" role="table" aria-label={`Standings${team ? ` for ${team}` : ''}, ranked by rate`}>
+      {/* Screen readers hear how much of the board this is. The gap rows show it to everyone else. */}
+      {drawn < rows.length && (
+        <p id="board-shown" className="visually-hidden">
+          Showing {drawn} of {rows.length} reps. Each gap row has a button that shows more.
+        </p>
+      )}
+      <table
+        className="board"
+        role="table"
+        aria-label={`Standings${team ? ` for ${team}` : ''}, ranked by rate`}
+        aria-describedby={drawn < rows.length ? 'board-shown' : undefined}
+      >
         <thead role="rowgroup">
           <tr role="row">
             <th scope="col" role="columnheader">Rank</th>
