@@ -56,10 +56,11 @@ export function StandingsScreen() {
   const figures = useMemo(() => figuresFor(teamRows, model, ctx), [teamRows, model, ctx])
   const scope = team ? `${team} reps` : 'reps'
 
-  // Gaps opened with Show more belong to this filter and search. Change
-  // either and the board folds back up.
+  // Gaps opened with Show more belong to this team filter. Change it and
+  // the board folds back up. A search draws everyone anyway, so the gaps
+  // you opened are still open once you clear it.
   const { openedGaps, openGap, closeGaps } = app
-  const view = `${team ?? 'all'}|${needle}`
+  const view = team ?? 'all'
   const opened = openedGaps.key === view ? openedGaps.spans : NONE
   useEffect(() => {
     if (openedGaps.spans.length && openedGaps.key !== view) closeGaps()

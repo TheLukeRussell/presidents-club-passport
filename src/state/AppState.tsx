@@ -22,9 +22,9 @@ export interface SlideFrom {
   above: ReadonlySet<string>
 }
 
-// Gaps opened on the short board with Show more, for one team filter and
-// search (the key). Standings drops them once either changes. They live
-// here so they're still open when you come back from a passport.
+// Gaps opened on the short board with Show more, for one team filter (the
+// key). Standings drops them once it changes. They live here so they're
+// still open when you come back from a passport.
 export interface OpenedGaps {
   key: string
   spans: Span[]
