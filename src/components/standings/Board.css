@@ -228,6 +228,9 @@
      and the column stays put, so every row keeps one height. A name that
      still doesn't fit wraps instead of running under the rate. */
   .board__rank--long { font-size: var(--text-lg); letter-spacing: -0.04em; }
+  /* Three characters fit the bare column but not your Ember block's padding,
+     so in your row they step down one size. */
+  .board__row.is-you .board__rank--three { font-size: var(--text-xl); }
   .board__link { white-space: normal; }
 }
 

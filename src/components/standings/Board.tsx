@@ -28,11 +28,9 @@ interface Props {
 
 const SLIDE_MS = 720
 const EASE_OUT = 'cubic-bezier(0.16, 1, 0.3, 1)'
-// Reps coming out of a gap fade in once the slide is most of the way
-// there. Anything still passing over them is opaque and on top, so waiting
-// longer would only leave holes in the board.
-const FADE_DELAY = SLIDE_MS / 4
-const FADE_MS = SLIDE_MS / 2
+// Reps coming out of a gap fade in right away. Anything still passing over
+// them is opaque and on top, so waiting would only leave holes in the board.
+const FADE_MS = SLIDE_MS / 3
 
 function ChangeCell({ change }: { change: Change }) {
   switch (change.kind) {
@@ -61,15 +59,17 @@ function ChangeCell({ change }: { change: Change }) {
 // the rows that stayed put.
 const RepRow = memo(function RepRow({ row, you }: { row: StandingRow; you: boolean }) {
   const status = row.rank === null ? 'Unranked' : row.above ? 'Above' : 'Below'
-  // Four characters, like T254, take a smaller size to fit a phone's rank column.
-  const long = row.rank !== null && `${row.tied ? 'T' : ''}${row.rank}`.length > 3
+  // Four characters, like T254, take a smaller size to fit a phone's rank
+  // column. Three, like T24, only crowd your Ember block there.
+  const chars = row.rank === null ? 0 : `${row.tied ? 'T' : ''}${row.rank}`.length
+  const size = chars > 3 ? ' board__rank--long' : chars === 3 ? ' board__rank--three' : ''
   return (
     <tr
       role="row"
       data-rep={row.rep.id}
       className={`board__row${row.rank === null ? ' is-unranked' : row.above ? ' is-above' : ' is-below'}${you ? ' is-you' : ''}`}
     >
-      <td role="cell" className={`board__rank${long ? ' board__rank--long' : ''}`}>
+      <td role="cell" className={`board__rank${size}`}>
         {row.rank === null ? (
           <>
             <span aria-hidden="true">NR</span>
@@ -283,7 +283,7 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
       motion.addEventListener('cancel', settle)
     }
     const fadeIn = (el: HTMLElement) =>
-      el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: FADE_MS, delay: FADE_DELAY, easing: 'ease-out', fill: 'backwards' })
+      el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: FADE_MS, easing: 'ease-out' })
 
     kids.forEach((el, k) => {
       let top: number | undefined
