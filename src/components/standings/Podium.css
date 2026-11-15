@@ -41,6 +41,7 @@
 .podium__step--first { grid-column: 2; }
 .podium__step--second { grid-column: 1; }
 .podium__step--third { grid-column: 3; }
+.podium__step--all { grid-column: 1 / -1; }
 .podium__step--tall { grid-row: 1 / -1; background: var(--color-board-signal); color: var(--color-board-signal-ink); }
 .podium__step--mid { grid-row: 2 / -1; }
 .podium__step--short { grid-row: 3 / -1; }
@@ -57,13 +58,13 @@
 }
 
 /* The whole step is clickable; the name is the real link. */
-.podium__name {
+.podium__name, .podium__count {
   font-weight: 700;
   font-size: var(--text-lg);
   line-height: 1.2;
-  text-decoration: none;
   overflow-wrap: anywhere;
 }
+.podium__name { text-decoration: none; }
 .podium__name::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
 @media (hover: hover) { .podium__step:hover .podium__name { text-decoration: underline; } }
 .podium__name:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
@@ -84,16 +85,62 @@
 /* On Ember everything is Ink: Stone drops under 4.5:1 there. */
 .podium__step--tall .podium__meta, .podium__step--tall .podium__stamps { color: var(--color-board-signal-ink); }
 
-.podium__note { font-size: var(--text-sm); color: var(--color-board-muted); }
+/* A tie too big for the steps left: one step that counts them, and the
+   board's Show more button, which opens them there. Like a rep's name, the
+   button covers the whole step: it stays put so its ::after reaches the
+   step's edges, and it never moves when pressed, because a transform would
+   shrink that cover back to the button mid-click. The step is the target,
+   so the button itself can sit a little shorter than the board's. */
+.podium__all {
+  position: static;
+  align-self: flex-start;
+  max-width: 100%;
+  min-height: 32px;
+  margin-top: var(--space-xs);
+  padding: var(--space-3xs) var(--space-sm);
+  border-color: var(--color-ink);
+  font-size: var(--text-sm);
+  line-height: 1.2;
+  /* A big count in a narrow slot breaks onto two lines instead of
+     running out of the step. */
+  white-space: normal;
+  text-align: center;
+}
+.podium__all::before { content: none; }
+.podium__all::after { content: ""; position: absolute; inset: 0; }
+@media (hover: hover) { .podium__all:hover { background: var(--color-board); } }
+.podium__all:active { transform: none; opacity: 0.85; }
+
+/* Alone, the tie spans all three slots. The count and teams read down the
+   left, and the rate and the button share the bottom line. */
+.podium__step--all {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto 1fr;
+  grid-template-areas: "rank rank" "count count" "meta meta" "rate all";
+  column-gap: var(--space-md);
+}
+.podium__step--all .podium__rank { grid-area: rank; }
+.podium__step--all .podium__count { grid-area: count; font-size: var(--text-2xl); letter-spacing: var(--tracking-display); line-height: 1.1; }
+.podium__step--all .podium__meta { grid-area: meta; }
+.podium__step--all .podium__rate { grid-area: rate; align-self: end; }
+.podium__step--all .podium__all { grid-area: all; align-self: end; margin-top: 0; }
 
 @media (max-width: 40rem) {
   .podium__steps { grid-template-rows: 24px 24px minmax(172px, auto); column-gap: var(--space-2xs); }
   .podium__step { padding: var(--space-sm) var(--space-xs); }
   .podium__rank { font-size: var(--text-display-s); }
-  .podium__name { font-size: var(--text-md); }
+  .podium__name, .podium__count { font-size: var(--text-md); }
   .podium__rate { font-size: var(--text-xl); }
   /* "10 of 11" gets its own line instead of wrapping on a narrow step. */
   .podium__stamps { display: block; margin-top: var(--space-3xs); }
+  .podium__all { padding-inline: var(--space-xs); }
+  .podium__step--all .podium__count { font-size: var(--text-xl); }
+}
+
+/* High contrast drops the fills, so the button keeps an edge of its own. */
+@media (forced-colors: active) {
+  .podium__all { border-color: ButtonText; }
 }
 
 @media (prefers-reduced-motion: reduce) {

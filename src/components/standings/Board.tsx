@@ -24,6 +24,9 @@ interface Props {
   opened: readonly Span[]
   onOpen: (span: Span) => void
   onClear: () => void
+  // See all on the podium: the first rep of the tie it opened. A new
+  // object each press, so pressing it again goes there again.
+  jump: { id: string } | null
 }
 
 const SLIDE_MS = 720
@@ -151,7 +154,7 @@ function GapRow({ gap, below, total, onOpen }: { gap: Piece; below: boolean; tot
   )
 }
 
-export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onClear }: Props) {
+export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onClear, jump }: Props) {
   const { slideFrom, clearSlide } = useApp()
   const reduced = useReducedMotion()
   const bodyRef = useRef<HTMLTableSectionElement>(null)
@@ -337,6 +340,19 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
     focusRep.current = rows[gap.start]?.rep.id ?? null
     onOpen(span)
   }
+
+  // See all puts focus on the first rep of the tie, by now drawn, and
+  // brings their row up to the top of the screen, under the page's scroll
+  // padding. Once per press.
+  const jumped = useRef<Props['jump']>(null)
+  useLayoutEffect(() => {
+    if (!jump || jumped.current === jump) return
+    jumped.current = jump
+    const row = bodyRef.current?.querySelector<HTMLElement>(`[data-rep="${CSS.escape(jump.id)}"]`)
+    if (!row) return
+    row.querySelector<HTMLElement>('.board__link')?.focus({ preventScroll: true })
+    row.scrollIntoView({ block: 'start', behavior: reduced ? 'auto' : 'smooth' })
+  }, [jump, reduced])
 
   if (rows.length === 0) {
     return (

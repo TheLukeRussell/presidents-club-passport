@@ -4,7 +4,7 @@
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { TEAMS } from '../../config'
+import { BOARD, TEAMS } from '../../config'
 import type { Span } from '../../lib/board'
 import { figuresFor } from '../../lib/ranking'
 import { useApp } from '../../state/AppState'
@@ -66,6 +66,17 @@ export function StandingsScreen() {
     if (openedGaps.spans.length && openedGaps.key !== view) closeGaps()
   }, [openedGaps, view, closeGaps])
 
+  // See all on the podium opens the tie on the board, the way Show more
+  // would have, all of it at once, then takes you to the first rep in it.
+  // A board short enough to draw everyone already has them.
+  const [jump, setJump] = useState<{ id: string } | null>(null)
+  const seeAll = (span: Span) => {
+    const first = teamRows[span.start]
+    if (!first) return
+    if (teamRows.length > BOARD.fullUpTo) openGap(view, span)
+    setJump({ id: first.rep.id })
+  }
+
   return (
     <div className="standings container">
       <header className="standings__head">
@@ -113,7 +124,7 @@ export function StandingsScreen() {
       </div>
 
       <section className="scoreboard" aria-label="Scoreboard">
-        {!needle && teamRows.some((row) => row.rank !== null) && <Podium rows={teamRows} team={team} />}
+        {!needle && teamRows.some((row) => row.rank !== null) && <Podium rows={teamRows} team={team} onSeeAll={seeAll} />}
         <Board
           rows={rows}
           viewAsId={viewAs.id}
@@ -123,6 +134,7 @@ export function StandingsScreen() {
           opened={opened}
           onOpen={(span) => openGap(view, span)}
           onClear={() => search('')}
+          jump={jump}
         />
       </section>
     </div>
