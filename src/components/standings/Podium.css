@@ -126,7 +126,9 @@
 @media (max-width: 40rem) {
   .podium__steps { grid-template-rows: 24px 24px minmax(172px, auto); column-gap: var(--space-2xs); }
   .podium__step { padding: var(--space-sm) var(--space-xs); }
-  .podium__rank { font-size: var(--text-display-s); }
+  /* Shrinks a little under about 370px wide, so a tied rank like T33 fits
+     a 320 phone's step instead of running into its edge. */
+  .podium__rank { font-size: min(var(--text-display-s), 13vw); }
   .podium__name, .podium__count { font-size: var(--text-md); }
   .podium__rate { font-size: var(--text-xl); }
   /* "10 of 11" gets its own line instead of wrapping on a narrow step. */

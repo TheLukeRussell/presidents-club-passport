@@ -336,6 +336,12 @@ test('the podium counts a tie it can’t fit and See all finds them', async ({ p
     const bottoms = await page.locator('.podium__rate').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().bottom)))
     expect(new Set(bottoms).size, 'rates on one line').toBe(1)
   }
+  // T33 fits its step on a 320 phone instead of running into the edge.
+  const size = page.viewportSize()!
+  await page.setViewportSize({ width: 320, height: size.height })
+  const ranks = await page.locator('.podium__rank').evaluateAll((els) => els.map((el) => el.scrollWidth - el.clientWidth))
+  expect(ranks, 'every rank fits its step at 320').toEqual([0, 0, 0])
+  await page.setViewportSize(size)
   await page.getByRole('button', { name: 'See all 3 reps tied for 33rd' }).click()
   const aisha = page.locator('[data-rep="aisha-bello"]')
   await expect(aisha.locator('.board__rank')).toHaveText('Tied T33')
