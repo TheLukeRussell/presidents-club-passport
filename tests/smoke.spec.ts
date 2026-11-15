@@ -2,7 +2,7 @@
 // today's attendance, check the standings moved, filter, then reset.
 
 import { readFileSync } from 'node:fs'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 const where = (page: Page) => page.locator('.passport__where')
 const next = (page: Page) => page.getByRole('button', { name: 'Next page' })
@@ -10,6 +10,40 @@ const prev = (page: Page) => page.getByRole('button', { name: 'Previous page' })
 // The pages actually showing. The book also keeps hidden copies of every page
 // to size itself, so text checks look only here.
 const shown = (page: Page) => page.locator('.book__slot')
+
+// Where See all leaves the row it focuses: on screen, at the top under the
+// page's scroll padding, unless the page runs out of room to scroll first.
+// Polled, since the scroll is smooth.
+const landed = (row: Locator) =>
+  expect
+    .poll(() =>
+      row.evaluate((el) => {
+        const box = el.getBoundingClientRect()
+        const pad = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0
+        const end = scrollY >= document.documentElement.scrollHeight - innerHeight - 1
+        return box.top >= 0 && box.bottom <= innerHeight && (Math.abs(box.top - pad) < 2 || end)
+      }),
+    )
+    .toBe(true)
+
+// Walks the board top to bottom. Every rep is drawn or counted in a gap
+// once, and each gap's button says it opens the places right where it sits.
+const accounted = (page: Page) =>
+  page.evaluate(() => {
+    let at = 0
+    const gaps: number[] = []
+    const wrong: string[] = []
+    for (const el of document.querySelector('.board tbody')!.children as HTMLCollectionOf<HTMLElement>) {
+      if (el.dataset.rep) at++
+      if (!el.classList.contains('board__gap')) continue
+      const count = Number(el.querySelector('.board__gap-count')!.textContent!.match(/\d+/)![0])
+      const from = Number(el.querySelector('button')!.getAttribute('aria-label')!.match(/reps (\d+)/)![1])
+      if (from !== at + 1) wrong.push(`gap at ${at} opens from ${from}`)
+      gaps.push(at)
+      at += count
+    }
+    return { total: at, gaps, wrong }
+  })
 
 test('the demo flow works end to end', async ({ page }, info) => {
   const phone = info.project.name.startsWith('phone')
@@ -114,6 +148,9 @@ test('the demo flow works end to end', async ({ page }, info) => {
   // reps on the full board, so he keeps his T here and on the podium.
   await expect(page.locator('[data-rep="liam-tremblay"] .board__rank')).toHaveText('Tied T4')
   await expect(page.locator('.podium__step--first .podium__rank')).toHaveText('Rank T4')
+  // Two Federal reps share 32nd and only one step is left, so that step
+  // counts them instead of picking one.
+  await expect(page.locator('.podium__step--third .podium__count')).toHaveText('2 reps tied for 32nd')
   await page.getByLabel('Search by name').fill('zzz')
   await expect(page.getByText('Nobody named “zzz” on Federal')).toBeVisible()
   await page.getByRole('button', { name: 'Clear search' }).click()
@@ -231,13 +268,66 @@ test('the board stays short and every rep is a tap away', async ({ page }) => {
   await expect(table).not.toHaveAttribute('aria-describedby')
 })
 
+// A tie too big for the steps left gets one step that counts it, so the
+// alphabet never picks who stands on the podium. See all takes you to the
+// first of them on the board, and the whole step is its button.
+test('the podium counts a tie it can’t fit and See all finds them', async ({ page }) => {
+  const steps = page.locator('.podium__step')
+  await page.goto('./#/standings?team=netsec')
+
+  // Five NetSec reps share 4th: one step for all of them, across the podium.
+  await expect(page.getByRole('heading', { name: 'Tied at the top in NetSec' })).toBeVisible()
+  await expect(steps).toHaveCount(1)
+  await expect(steps).toHaveClass(/podium__step--all/)
+  await expect(steps.locator('.podium__rank')).toHaveText('Rank T4')
+  await expect(steps.locator('.podium__count')).toHaveText('5 reps tied for 4th')
+  await expect(steps.locator('.podium__rate')).toHaveText('87% 7 of 8')
+  await expect(page.locator('.podium__name')).toHaveCount(0)
+  const seeAll = page.getByRole('button', { name: 'See all 5 reps tied for 4th' })
+  await expect(seeAll).toHaveText('See all 5')
+
+  // From the keyboard: focus lands on the first T4 on the board, its row
+  // brought up to the top of the screen.
+  const first = page.locator('[data-rep]').first()
+  await expect(first.locator('.board__rank')).toHaveText('Tied T4')
+  await seeAll.focus()
+  await page.keyboard.press('Enter')
+  await expect(first.getByRole('link', { name: 'Harper Lindgren' })).toBeFocused()
+  await landed(first)
+
+  // A tap anywhere on the step does the same.
+  await page.getByLabel('Search by name').focus()
+  await page.evaluate(() => scrollTo(0, 0))
+  const box = (await steps.boundingBox())!
+  await steps.click({ position: { x: box.width - 12, y: 12 } })
+  await expect(first.getByRole('link', { name: 'Harper Lindgren' })).toBeFocused()
+  await landed(first)
+
+  // On Federal, Liam and Ethan get steps of their own, and the three
+  // sharing 33rd get the last one together.
+  await page.locator('label[for="team-federal"]').click()
+  await expect(page.getByRole('heading', { name: 'Top three in Federal' })).toBeVisible()
+  await expect(steps).toHaveCount(3)
+  await expect(page.locator('.podium__name')).toHaveText(['Liam Tremblay', 'Ethan Park'])
+  await expect(page.locator('.podium__step--third .podium__rank')).toHaveText('Rank T33')
+  await expect(page.locator('.podium__step--third .podium__count')).toHaveText('3 reps tied for 33rd')
+  await page.getByRole('button', { name: 'See all 3 reps tied for 33rd' }).click()
+  const aisha = page.locator('[data-rep="aisha-bello"]')
+  await expect(aisha.locator('.board__rank')).toHaveText('Tied T33')
+  await expect(aisha.getByRole('link', { name: 'Aisha Bello' })).toBeFocused()
+  await landed(aisha)
+
+  // Three tied for 2nd fit all three steps, so they stand up there by name.
+  await page.locator('label[for="team-all"]').click()
+  await expect(page.getByRole('heading', { name: 'Top three', exact: true })).toBeVisible()
+  await expect(page.locator('.podium__name')).toHaveText(['Jordan Hale', 'Marcus Bell', 'Priya Natarajan'])
+  await expect(page.locator('.podium__count')).toHaveCount(0)
+})
+
 // Prod size: 600 reps, the sample plus nine made-up copies of it (each rep's
 // record under a first name paired with another sample surname), so ranks
-// run past 99 with big ties. The demo still opens as Hannah, the board stays
-// short with you on it, and the rank column fits ties like T271 without
-// printing over the name, down to a 320 phone, with every row one height.
-// Record still slides, and nothing prints text over text while it does.
-test('a 600 rep board stays short and its ranks fit', async ({ page }, info) => {
+// run past 99 with big ties. Every page that loads data gets this instead.
+async function useSixHundred(page: Page) {
   type Row = { rep_email: string; rep_name: string }
   const sample: Row[] = JSON.parse(readFileSync('public/data/attendance.json', 'utf8'))
   const byRep = new Map<string, Row[]>()
@@ -253,6 +343,14 @@ test('a 600 rep board stays short and its ranks fit', async ({ page }, info) => 
   }
   expect(big).toHaveLength(600 * 24)
   await page.route('**/data/attendance.json', (route) => route.fulfill({ json: big }))
+}
+
+// At 600 reps the demo still opens as Hannah, the board stays short with
+// you on it, and the rank column fits ties like T271 without printing over
+// the name, down to a 320 phone, with every row one height. Record still
+// slides, and nothing prints text over text while it does.
+test('a 600 rep board stays short and its ranks fit', async ({ page }, info) => {
+  await useSixHundred(page)
 
   await page.goto('./')
   await expect(page).toHaveURL(/#\/passport\/hannah-kowalski$/)
@@ -390,6 +488,71 @@ test('a 600 rep board stays short and its ranks fit', async ({ page }, info) => 
   // You cross the line and stay on the board, which stays short.
   await expect(page.locator('[data-rep="hannah-kowalski"] .board__status')).toHaveText('Above')
   expect(await rows.count()).toBeLessThanOrEqual(25)
+})
+
+// At 600 reps a tie fills the podium. See all draws the whole tie on the
+// short board, as if Show more had opened just that run, and the gap rows
+// still count everyone else. What it opens stays open through a search and
+// Record, and folds up when the team filter changes, the same as a gap.
+test('a 600 rep podium counts its tie and See all opens all of it', async ({ page }) => {
+  await useSixHundred(page)
+  const steps = page.locator('.podium__step')
+  const tied = (rank: string) => page.locator('[data-rep]').filter({ has: page.locator('.board__rank', { hasText: new RegExp(`^Tied ${rank}$`) }) })
+
+  // Jordan and his nine copies share 1st, which the short board's top ten
+  // already shows.
+  await page.goto('./#/standings')
+  await expect(page.getByRole('heading', { name: 'Tied at the top', exact: true })).toBeVisible()
+  await expect(steps).toHaveCount(1)
+  await expect(steps.locator('.podium__count')).toHaveText('10 reps tied for 1st')
+  await expect(steps.locator('.podium__meta')).toHaveText('POSB')
+  await page.getByRole('button', { name: 'See all 10 reps tied for 1st' }).click()
+  await expect(tied('T1')).toHaveCount(10)
+  await expect(tied('T1').first().locator('.board__link')).toBeFocused()
+  await landed(tied('T1').first())
+  expect(await accounted(page)).toMatchObject({ total: 600, wrong: [] })
+
+  // Fifty NetSec reps share 31st. The short board shows the top ten and a
+  // couple over the line, with the rest of the tie folded into a gap. See
+  // all draws every one of them.
+  await page.locator('label[for="team-netsec"]').click()
+  await expect(page.getByRole('heading', { name: 'Tied at the top in NetSec' })).toBeVisible()
+  await expect(steps.locator('.podium__count')).toHaveText('50 reps tied for 31st')
+  await expect(page.locator('.board__gap')).not.toHaveCount(0)
+  expect((await accounted(page)).gaps[0]).toBe(10)
+  expect(await tied('T31').count()).toBeLessThan(50)
+  await page.getByRole('button', { name: 'See all 50 reps tied for 31st' }).click()
+  await expect(tied('T31')).toHaveCount(50)
+  const drawnFirst = await page.locator('.board tbody > tr').evaluateAll((els) => els.slice(0, 50).every((el) => el.querySelector('.board__rank')?.textContent === 'Tied T31'))
+  expect(drawnFirst, 'the tie is the top 50 rows, together').toBe(true)
+  await expect(tied('T31').first().locator('.board__link')).toBeFocused()
+  await landed(tied('T31').first())
+  const opened = await accounted(page)
+  expect(opened).toMatchObject({ total: 120, wrong: [] })
+  expect(opened.gaps.every((at) => at >= 50), 'no gap inside the tie').toBe(true)
+  await expect(page.getByRole('table', { name: /^Standings/ })).toHaveAccessibleDescription(new RegExp(`^Showing ${await page.locator('[data-rep]').count()} of 120 reps\\.`))
+
+  // Still open after a search and Clear search.
+  const search = page.getByLabel('Search by name')
+  await search.fill('a')
+  await expect(page.locator('.board__gap')).toHaveCount(0)
+  await search.fill('')
+  await expect(tied('T31')).toHaveCount(50)
+
+  // And after Record, which reshuffles the tie: the same 50 places stay drawn.
+  await page.getByRole('button', { name: 'Demo', exact: true }).click()
+  await page.getByRole('button', { name: 'Record today’s attendance' }).click()
+  await expect(steps.locator('.podium__count')).not.toHaveText('50 reps tied for 31st')
+  await page.keyboard.press('Escape')
+  const recorded = await accounted(page)
+  expect(recorded).toMatchObject({ total: 120, wrong: [] })
+  expect(recorded.gaps.every((at) => at >= 50), 'the 50 places stay open').toBe(true)
+
+  // Another team folds it back up.
+  await page.locator('label[for="team-all"]').click()
+  await page.locator('label[for="team-netsec"]').click()
+  await expect(page.locator('.board__gap').first()).toBeVisible()
+  expect((await accounted(page)).gaps[0]).toBe(10)
 })
 
 test('the app still works when storage is blocked', async ({ page }) => {
