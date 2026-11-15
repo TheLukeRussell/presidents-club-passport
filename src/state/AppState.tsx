@@ -161,8 +161,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const clearSlide = useCallback(() => setSlideFrom(null), [])
 
+  // Pressing See all twice opens the same run twice. Keep one copy.
   const openGap = useCallback(
-    (key: string, span: Span) => setOpenedGaps((current) => ({ key, spans: current.key === key ? [...current.spans, span] : [span] })),
+    (key: string, span: Span) =>
+      setOpenedGaps((current) => {
+        if (current.key !== key) return { key, spans: [span] }
+        if (current.spans.some((s) => s.start === span.start && s.end === span.end)) return current
+        return { key, spans: [...current.spans, span] }
+      }),
     [],
   )
   const closeGaps = useCallback(() => setOpenedGaps({ key: '', spans: [] }), [])
