@@ -271,7 +271,8 @@ test('the board stays short and every rep is a tap away', async ({ page }) => {
 // A tie too big for the steps left gets one step that counts it, so the
 // alphabet never picks who stands on the podium. See all takes you to the
 // first of them on the board, and the whole step is its button.
-test('the podium counts a tie it can’t fit and See all finds them', async ({ page }) => {
+test('the podium counts a tie it can’t fit and See all finds them', async ({ page }, info) => {
+  const phone = info.project.name.startsWith('phone')
   const steps = page.locator('.podium__step')
   await page.goto('./#/standings?team=netsec')
 
@@ -285,6 +286,23 @@ test('the podium counts a tie it can’t fit and See all finds them', async ({ p
   await expect(page.locator('.podium__name')).toHaveCount(0)
   const seeAll = page.getByRole('button', { name: 'See all 5 reps tied for 4th' })
   await expect(seeAll).toHaveText('See all 5')
+  // It sits on the rate's line, right after the rate's text, not a whole
+  // podium away.
+  const apart = await steps.evaluate((step) => {
+    const rate = step.querySelector('.podium__rate')!
+    // Where the words end, not the box: on a phone the stamps are a block.
+    let right = 0
+    const walk = document.createTreeWalker(rate, NodeFilter.SHOW_TEXT)
+    while (walk.nextNode()) {
+      const text = document.createRange()
+      text.selectNodeContents(walk.currentNode)
+      right = Math.max(right, text.getBoundingClientRect().right)
+    }
+    const button = step.querySelector('.podium__all')!.getBoundingClientRect()
+    return { gap: button.left - right, line: Math.abs(button.bottom - rate.getBoundingClientRect().bottom) }
+  })
+  expect(apart.gap, 'See all is next to the rate').toBeLessThan(40)
+  expect(apart.line, 'See all is on the rate’s line').toBeLessThan(2)
 
   // From the keyboard: focus lands on the first T4 on the board, its row
   // brought up to the top of the screen.
@@ -311,6 +329,13 @@ test('the podium counts a tie it can’t fit and See all finds them', async ({ p
   await expect(page.locator('.podium__name')).toHaveText(['Liam Tremblay', 'Ethan Park'])
   await expect(page.locator('.podium__step--third .podium__rank')).toHaveText('Rank T33')
   await expect(page.locator('.podium__step--third .podium__count')).toHaveText('3 reps tied for 33rd')
+  // On a laptop the count step's rate and button share a line, so its
+  // rate lines up with the others and the podium is no taller than usual.
+  const tall = (await steps.first().boundingBox())!.height
+  if (!phone) {
+    const bottoms = await page.locator('.podium__rate').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().bottom)))
+    expect(new Set(bottoms).size, 'rates on one line').toBe(1)
+  }
   await page.getByRole('button', { name: 'See all 3 reps tied for 33rd' }).click()
   const aisha = page.locator('[data-rep="aisha-bello"]')
   await expect(aisha.locator('.board__rank')).toHaveText('Tied T33')
@@ -322,6 +347,7 @@ test('the podium counts a tie it can’t fit and See all finds them', async ({ p
   await expect(page.getByRole('heading', { name: 'Top three', exact: true })).toBeVisible()
   await expect(page.locator('.podium__name')).toHaveText(['Jordan Hale', 'Marcus Bell', 'Priya Natarajan'])
   await expect(page.locator('.podium__count')).toHaveCount(0)
+  if (!phone) expect((await steps.first().boundingBox())!.height, 'Federal’s podium is as tall as this one').toBe(tall)
 })
 
 // Prod size: 600 reps, the sample plus nine made-up copies of it (each rep's

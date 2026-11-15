@@ -36,24 +36,27 @@ function TieContent({ step, team, onSeeAll }: { step: TieStep; team: string | nu
       </p>
       <p className="podium__count">{tiedFor}</p>
       {!team && <p className="podium__meta">{step.teams.length === 1 ? step.teams[0] : `From ${step.teams.length} teams`}</p>}
-      <p className="podium__rate">
-        {percentOf(step.rate)}%
-        {step.stamps && (
-          <span className="podium__stamps">
-            {' '}
-            {step.stamps.attended} of {step.stamps.recorded}
-          </span>
-        )}
-      </p>
-      {/* Like a rep's name, it covers the whole step. */}
-      <button
-        type="button"
-        className="btn btn--quiet podium__all"
-        aria-label={`See all ${tiedFor}`}
-        onClick={() => onSeeAll({ start: step.start, end: step.end })}
-      >
-        See all {step.count}
-      </button>
+      {/* The rate and the button share the bottom line when there's room. */}
+      <div className="podium__foot">
+        <p className="podium__rate">
+          {percentOf(step.rate)}%
+          {step.stamps && (
+            <span className="podium__stamps">
+              {' '}
+              {step.stamps.attended} of {step.stamps.recorded}
+            </span>
+          )}
+        </p>
+        {/* Like a rep's name, it covers the whole step. */}
+        <button
+          type="button"
+          className="btn btn--quiet podium__all"
+          aria-label={`See all ${tiedFor}`}
+          onClick={() => onSeeAll({ start: step.start, end: step.end })}
+        >
+          See all {step.count}
+        </button>
+      </div>
     </>
   )
 }
