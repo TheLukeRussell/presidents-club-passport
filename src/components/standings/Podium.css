@@ -10,11 +10,15 @@
   text-transform: uppercase;
 }
 
+/* Three bands, top to bottom. A tall step stands in all three, a mid step
+   in the bottom two, a short step in the bottom one. When a step's words
+   run long the bottom band grows, so every step grows with it and the
+   podium keeps its shape. */
 .podium__steps {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: end;
-  gap: var(--space-sm);
+  grid-template-rows: 32px 24px minmax(180px, auto);
+  column-gap: var(--space-sm);
   margin: 0;
   padding: 0;
   border-bottom: 2px solid var(--color-ink);
@@ -33,13 +37,13 @@
   color: var(--color-ink);
   transition: background-color var(--dur-micro) var(--ease-out);
 }
-/* Position comes from the slot, height from the rank. */
-.podium__step--first { grid-column: 2; grid-row: 1; }
-.podium__step--second { grid-column: 1; grid-row: 1; }
-.podium__step--third { grid-column: 3; grid-row: 1; }
-.podium__step--tall { min-height: 236px; background: var(--color-board-signal); color: var(--color-board-signal-ink); }
-.podium__step--mid { min-height: 204px; }
-.podium__step--short { min-height: 180px; }
+/* Position comes from the slot, height from the place. */
+.podium__step--first { grid-column: 2; }
+.podium__step--second { grid-column: 1; }
+.podium__step--third { grid-column: 3; }
+.podium__step--tall { grid-row: 1 / -1; background: var(--color-board-signal); color: var(--color-board-signal-ink); }
+.podium__step--mid { grid-row: 2 / -1; }
+.podium__step--short { grid-row: 3 / -1; }
 @media (hover: hover) { .podium__step:not(.podium__step--tall):hover { background: var(--color-board-hover); } }
 
 /* Plain Ink numerals. First gets its colour from the step, not the number. */
@@ -83,11 +87,8 @@
 .podium__note { font-size: var(--text-sm); color: var(--color-board-muted); }
 
 @media (max-width: 40rem) {
-  .podium__steps { gap: var(--space-2xs); }
+  .podium__steps { grid-template-rows: 24px 24px minmax(172px, auto); column-gap: var(--space-2xs); }
   .podium__step { padding: var(--space-sm) var(--space-xs); }
-  .podium__step--tall { min-height: 220px; }
-  .podium__step--mid { min-height: 196px; }
-  .podium__step--short { min-height: 172px; }
   .podium__rank { font-size: var(--text-display-s); }
   .podium__name { font-size: var(--text-md); }
   .podium__rate { font-size: var(--text-xl); }
