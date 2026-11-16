@@ -17,6 +17,7 @@
     "test:e2e": "playwright test",
     "data": "node scripts/generate-data.ts",
     "import": "node scripts/import-sheet.ts",
+    "template": "python3 scripts/make-template.py",
     "lint": "oxlint",
     "preview": "vite preview",
     "test:iphone": "IPHONE=1 playwright test --project=phone-iphone-16-pro-max"
