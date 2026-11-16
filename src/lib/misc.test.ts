@@ -1,15 +1,31 @@
-// Tests for the smaller helpers: seeded randomness, the model, stamps, the
-// demo picks and the formatters.
+// Tests for the smaller helpers: seeded randomness, the model, stamp looks
+// and the formatters.
 
 import { describe, expect, it } from 'vitest'
 import { SUPPLIERS } from '../config'
-import { pickDefaultRep, pickTodayAttendees } from './demo'
-import { daysBetween, initials, ordinal, shortDate, stampDate } from './format'
-import { buildModel, findRep, repIdFromEmail, withAttendance } from './model'
+import { daysBetween, firstName, givenNames, initials, longDate, monthName, ordinal, plural, shortDate, stampDate, surname } from './format'
+import { buildModel, findRep, repIdFromEmail, stampFrom, stampsOf, withStamps } from './model'
 import { hashString, seededRandom, shuffled, unitFor } from './random'
-import { repStats, type Context } from './rules'
+import { repStats } from './rules'
 import { STAMP_SHAPES, stampLook } from './stamps'
-import { FOUR, rowsFor } from './test-helpers'
+import { emailOf, modelOf, repOf, repRow, sheet, stampRow, stampsFor, TODAY } from './test-helpers'
+
+describe('the test stories', () => {
+  it('read the way the brief talks', () => {
+    const rows = stampsFor('Ana', '3 in-person trainings, 1 virtual, 2 fairs, 1 Hub course, Club Express Fall')
+    const count = (a: string, format?: string) => rows.filter((r) => r.activity === a && (!format || r.format === format)).length
+    expect([count('training', 'in person'), count('training', 'virtual'), count('fair'), count('hub'), count('club')]).toEqual([3, 1, 2, 1, 1])
+    expect(stampsFor('Ana', '1 in person, spring, quota').map((r) => [r.activity, r.date])).toEqual([
+      ['training', '2026-07-28'],
+      ['club', '2027-06-17'],
+      ['quota', '2027-06-17'],
+    ])
+  })
+  it('throw on anything they don’t know, so a typo can’t pass a test', () => {
+    expect(() => stampsFor('Ana', '2 fiars')).toThrow()
+    expect(() => stampsFor('Ana', '9 fairs')).toThrow()
+  })
+})
 
 describe('random', () => {
   it('gives the same sequence for the same seed', () => {
@@ -39,84 +55,106 @@ describe('model', () => {
   it('makes url-safe rep ids from emails', () => {
     expect(repIdFromEmail('Hannah.Kowalski@example.com')).toBe('hannah-kowalski')
     expect(repIdFromEmail('amélie.o.gagnon@example.com')).toBe('amelie-o-gagnon')
+    expect(repIdFromEmail('_jo..smith_@example.com')).toBe('jo-smith')
   })
-  it('sorts reps by name and trainings by date', () => {
-    const rows = rowsFor([...FOUR].reverse(), { Zed: 'aaaa', Ana: 'aaaa' })
-    const model = buildModel(rows)
+
+  it('names a stamp by its activity, day and event, so a room full of reps shares one', () => {
+    const ana = stampFrom(stampRow('Ana', 'training', '2027-06-17', { event: 'Pioneer solutions workshop' }))
+    const ben = stampFrom(stampRow('Ben', 'training', '2027-06-17', { event: 'Pioneer solutions workshop' }))
+    expect(ana.id).toBe('training-2027-06-17-pioneer-solutions-workshop')
+    expect(ben.id).toBe(ana.id)
+    expect(stampFrom(stampRow('Ana', 'club', '2026-10-14')).id).toBe('club-2026-10-14-club-express-fall')
+  })
+
+  it('sorts reps by name and stamps by date', () => {
+    const model = modelOf({ Zed: '2 fairs', Ana: '1 hub, fall' })
     expect(model.reps.map((r) => r.name)).toEqual(['Ana', 'Zed'])
-    expect(model.trainings.map((t) => t.id)).toEqual(['t1', 't2', 't3', 't4'])
+    expect(model.stamps.map((s) => s.date)).toEqual(['2026-07-15', '2026-09-10', '2026-10-14', '2026-12-03'])
+    expect(stampsOf(model, repOf(model, 'Zed')).map((s) => s.activity)).toEqual(['fair', 'fair'])
   })
-  it('only marks invited reps when recording attendance', () => {
-    const model = buildModel(rowsFor(FOUR, { Ana: 'aaam', Ben: 'aaa-' }))
-    const next = withAttendance(model, 't4', ['ana@example.com', 'ben@example.com'])
-    const ctx: Context = { today: '2027-04-13', todayRecorded: true, line: 0.75 }
-    expect(repStats(next, findRep(next, 'ana')!, ctx).attended).toBe(4)
-    expect(repStats(next, findRep(next, 'ben')!, ctx).recorded).toBe(3)
-    // the original model is untouched
-    expect(repStats(model, findRep(model, 'ana')!, ctx).attended).toBe(3)
+
+  it('keeps the start date and gives a rep with no stamps an empty list', () => {
+    const model = modelOf({ Ana: { team: 'Federal', start: '2027-06-01' } })
+    expect(repOf(model, 'Ana')).toEqual({ id: 'ana', email: 'ana@example.com', name: 'Ana', team: 'Federal', start: '2027-06-01' })
+    expect(stampsOf(model, repOf(model, 'Ana'))).toEqual([])
+    expect(findRep(model, 'nobody')).toBeUndefined()
+  })
+
+  it('drops stamps for anyone who isn’t on the Reps tab', () => {
+    const model = buildModel({ reps: [repRow('Ana')], stamps: [stampRow('Ana', 'fair', '2027-03-04'), stampRow('Ghost', 'fair', '2027-03-04')] })
+    expect(model.stamps.map((s) => s.email)).toEqual([emailOf('Ana')])
+  })
+
+  it('adds stamps on Record without stamping anyone twice', () => {
+    const model = modelOf({ Ana: '1 fair', Ben: '' })
+    const summer = (name: string) => stampRow(name, 'fair', '2027-06-17', { event: 'Summer Supplier Fair' })
+    const next = withStamps(model, [summer('Ana'), summer('Ben')])
+    expect(repStats(next, repOf(next, 'Ana'), TODAY).progress.fair.counted).toBe(2)
+    expect(repStats(next, repOf(next, 'Ben'), TODAY).progress.fair.counted).toBe(1)
+    // The same stamp again changes nothing, and hands back the same model.
+    expect(withStamps(next, [summer('Ana')])).toBe(next)
+    // The original model is untouched.
+    expect(repStats(model, repOf(model, 'Ana'), TODAY).progress.fair.counted).toBe(1)
+  })
+
+  it('keeps stamps in date order after Record', () => {
+    const model = buildModel(sheet({ Ana: '2 fairs' }))
+    const next = withStamps(model, [stampRow('Ana', 'hub', '2026-10-01')])
+    expect(next.stamps.map((s) => s.date)).toEqual(['2026-09-10', '2026-10-01', '2026-12-03'])
   })
 })
 
 describe('stampLook', () => {
   it('gives every listed supplier its own shape and ink pair', () => {
     const pairs = SUPPLIERS.map((s) => {
-      const look = stampLook(s, 'a@example.com', 't1')
+      const look = stampLook('training', s, 'a@example.com', 't1')
       return `${look.shape}/${look.ink}`
     })
     expect(new Set(pairs).size).toBe(SUPPLIERS.length)
   })
-  it('keeps the same tilt for the same rep and training', () => {
-    expect(stampLook('Zebra', 'a@example.com', 't1').rotate).toBe(stampLook('Zebra', 'a@example.com', 't1').rotate)
+  it('gives fairs, Hub courses and Club Express one look each, whatever the supplier', () => {
+    expect(stampLook('fair', '', 'a@example.com', 'f1')).toMatchObject({ shape: 'banner', ink: 2 })
+    expect(stampLook('hub', 'Zebra', 'a@example.com', 'h1')).toMatchObject({ shape: 'shield', ink: 1 })
+    expect(stampLook('hub', 'Cisco', 'a@example.com', 'h2')).toMatchObject({ shape: 'shield', ink: 1 })
+    expect(stampLook('club', '', 'a@example.com', 'c1')).toMatchObject({ shape: 'diamond', ink: 3 })
+  })
+  it('keeps the same tilt for the same rep and stamp', () => {
+    expect(stampLook('training', 'Zebra', 'a@example.com', 't1').rotate).toBe(stampLook('training', 'Zebra', 'a@example.com', 't1').rotate)
   })
   it('tilts a little, never a lot', () => {
     for (let i = 0; i < 50; i++) {
-      const { rotate } = stampLook('Brady', `r${i}@example.com`, `t${i}`)
+      const { rotate } = stampLook('training', 'Brady', `r${i}@example.com`, `t${i}`)
       expect(Math.abs(rotate)).toBeLessThanOrEqual(9)
     }
   })
   it('handles a supplier that is not on the list', () => {
-    expect(STAMP_SHAPES).toContain(stampLook('Somebody New', 'a@example.com', 't1').shape)
-  })
-})
-
-describe('demo picks', () => {
-  const ctx: Context = { today: '2027-04-13', todayRecorded: false, line: 0.75 }
-  const model = buildModel(rowsFor(FOUR, { Ana: 'aaam', Ben: 'aamm', Cy: 'amam', Di: 'aaa-' }))
-
-  it('always includes the rep you are viewing as', () => {
-    const cy = findRep(model, 'cy')!
-    const picks = pickTodayAttendees(model, model.trainings[3], cy, 0, 1)
-    expect(picks).toEqual(['cy@example.com'])
-  })
-  it('skips reps who were not invited', () => {
-    const picks = pickTodayAttendees(model, model.trainings[3], findRep(model, 'ana')!, 1, 1)
-    expect(picks).not.toContain('di@example.com')
-  })
-  it('is the same every time', () => {
-    const ana = findRep(model, 'ana')!
-    expect(pickTodayAttendees(model, model.trainings[3], ana, 0.5, 9)).toEqual(pickTodayAttendees(model, model.trainings[3], ana, 0.5, 9))
-  })
-  it('opens as someone who crosses the line today', () => {
-    // Ana is 3/3 (above). Ben 2/3 -> 3/4 crosses. Cy 2/3 -> 3/4 crosses too, Ben wins on name.
-    expect(pickDefaultRep(model, ctx)?.name).toBe('Ben')
-  })
-  it('opens as the pinned demo rep when they exist, and falls back when not', () => {
-    expect(pickDefaultRep(model, ctx, 'di')?.name).toBe('Di')
-    expect(pickDefaultRep(model, ctx, 'hannah-kowalski')?.name).toBe('Ben')
+    const look = stampLook('training', 'Somebody New', 'a@example.com', 't1')
+    expect(STAMP_SHAPES).toContain(look.shape)
+    expect(look).toEqual(stampLook('training', 'Somebody New', 'a@example.com', 't1'))
   })
 })
 
 describe('format', () => {
   it('formats dates without time zone drift', () => {
     expect(shortDate('2027-06-17')).toBe('Thu, Jun 17')
+    expect(longDate('2027-06-30')).toBe('June 30, 2027')
     expect(stampDate('2027-01-05')).toBe('05 JAN 2027')
     expect(daysBetween('2027-06-17', '2027-07-14')).toBe(27)
+    expect(monthName(10)).toBe('October')
   })
   it('does ordinals', () => {
     expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 101].map(ordinal)).toEqual(['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '101st'])
   })
-  it('does initials', () => {
+  it('splits and shortens names', () => {
     expect(initials('Hannah Kowalski')).toBe('HK')
     expect(initials('Cher')).toBe('C')
+    expect(firstName('Mary Ann Lee')).toBe('Mary')
+    expect(givenNames('Mary Ann Lee')).toBe('Mary Ann')
+    expect(surname('Mary Ann Lee')).toBe('Lee')
+  })
+  it('pluralizes', () => {
+    expect(plural(1, 'stamp')).toBe('1 stamp')
+    expect(plural(3, 'stamp')).toBe('3 stamps')
+    expect(plural(2, 'Hub course')).toBe('2 Hub courses')
   })
 })

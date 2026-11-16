@@ -26,7 +26,7 @@ describe('boardPieces', () => {
   })
 
   it('shows the top 10, two either side of the line and three either side of you', () => {
-    // Hannah at 600 reps: 305th, under a line at 287.
+    // You at 305th of 600, under a line at 287.
     expect(boardPieces(shape({ count: 600, cut: 287, you: 304 }))).toEqual([
       rows(0, 10),
       gap(10, 285),
@@ -38,7 +38,7 @@ describe('boardPieces', () => {
   })
 
   it('merges windows that overlap or touch', () => {
-    // The 60 rep sample before Record: Hannah sits right on the line.
+    // You sitting right on the line.
     expect(boardPieces(shape({ cut: 27, you: 27 }))).toEqual([rows(0, 10), gap(10, 24), rows(24, 31), gap(31, 60)])
     // You end at 24 and the line's window starts at 24.
     expect(boardPieces(shape({ count: 100, cut: 26, you: 20 }))).toEqual([rows(0, 10), gap(10, 17), rows(17, 28), gap(28, 100)])
@@ -85,8 +85,8 @@ describe('boardPieces', () => {
     expect(boardPieces(shape({ count: 120, cut: 60, you: -1 }))).toEqual([rows(0, 10), gap(10, 58), rows(58, 62), gap(62, 120)])
   })
 
-  it('keeps unranked reps at the bottom in the last gap unless a window reaches them', () => {
-    // A new hire at the very bottom: their window runs to the end.
+  it('keeps the bottom of the board in the last gap unless a window reaches it', () => {
+    // You at the very bottom: your window runs to the end.
     expect(boardPieces(shape({ cut: 27, you: 59 }))).toEqual([rows(0, 10), gap(10, 25), rows(25, 29), gap(29, 56), rows(56, 60)])
   })
 

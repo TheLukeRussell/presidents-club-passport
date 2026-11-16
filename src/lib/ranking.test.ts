@@ -1,153 +1,182 @@
-// Tests for tie ranking, rank change and the standings figures.
+// Tests for the order of the board, shared ranks, movement since the last
+// stamp day, the President's Club line and the figures.
 
 import { describe, expect, it } from 'vitest'
-import { buildModel } from './model'
-import { changeFor, compareRates, figuresFor, lineIndex, rankTallies, standings } from './ranking'
-import type { Context } from './rules'
-import { FOUR, rowsFor, SIX } from './test-helpers'
+import { DEMO_TODAY } from '../config'
+import { changeFor, compareScores, dayBefore, figuresFor, lineIndex, rankScores, standings } from './ranking'
+import { fakeRow, modelOf, stampRow, TODAY } from './test-helpers'
 
-const ctx: Context = { today: '2027-04-13', todayRecorded: false, line: 0.75 }
-const ctx6: Context = { today: '2027-06-17', todayRecorded: false, line: 0.75 }
+// Everything but the quota, and everything with it.
+const DONE = '4 in person, 2 fairs, 2 hub, fall, spring'
+const ALL = `${DONE}, quota`
 
-describe('compareRates', () => {
-  it('treats equal fractions as equal', () => {
-    expect(compareRates({ attended: 7, recorded: 9 }, { attended: 14, recorded: 18 })).toBe(0)
+const order = (rows: ReturnType<typeof standings>) => rows.map((r) => `${r.rank}${r.tied ? 'T' : ''} ${r.rep.name}`)
+
+describe('compareScores', () => {
+  it('puts more minimums met first, whatever the stamps', () => {
+    expect(compareScores({ met: 3, total: 8 }, { met: 2, total: 15 })).toBeLessThan(0)
+    expect(compareScores({ met: 1, total: 20 }, { met: 2, total: 4 })).toBeGreaterThan(0)
   })
-  it('sorts higher rates first', () => {
-    expect(compareRates({ attended: 9, recorded: 10 }, { attended: 1, recorded: 2 })).toBeLessThan(0)
+  it('breaks a tie on minimums with more stamps', () => {
+    expect(compareScores({ met: 2, total: 12 }, { met: 2, total: 10 })).toBeLessThan(0)
+    expect(compareScores({ met: 2, total: 10 }, { met: 2, total: 10 })).toBe(0)
   })
 })
 
-describe('rankTallies', () => {
+describe('rankScores', () => {
   it('shares ranks on ties and skips the next number', () => {
-    const ranks = rankTallies([
-      { id: 'a', name: 'Ana', tally: { attended: 4, recorded: 4 } },
-      { id: 'b', name: 'Ben', tally: { attended: 3, recorded: 4 } },
-      { id: 'c', name: 'Cy', tally: { attended: 6, recorded: 8 } },
-      { id: 'd', name: 'Di', tally: { attended: 1, recorded: 4 } },
-      { id: 'e', name: 'Ed', tally: { attended: 0, recorded: 0 } },
+    const ranks = rankScores([
+      { id: 'd', name: 'Di', score: { met: 1, total: 3 } },
+      { id: 'c', name: 'Cy', score: { met: 3, total: 9 } },
+      { id: 'a', name: 'Ana', score: { met: 4, total: 9 } },
+      { id: 'b', name: 'Ben', score: { met: 3, total: 9 } },
+      { id: 'e', name: 'Ed', score: { met: 0, total: 0 } },
     ])
-    expect([...ranks.entries()]).toEqual([
-      ['a', 1],
-      ['b', 2],
-      ['c', 2],
-      ['d', 4],
-      ['e', null],
-    ])
+    expect(Object.fromEntries(ranks)).toEqual({ a: 1, b: 2, c: 2, d: 4, e: 5 })
   })
 
-  it('leaves anyone with fewer than three recorded unranked', () => {
-    const items = [
-      { id: 'a', name: 'Ana', tally: { attended: 2, recorded: 3 } },
-      { id: 'b', name: 'Ben', tally: { attended: 2, recorded: 2 } },
-      { id: 'c', name: 'Cy', tally: { attended: 0, recorded: 1 } },
-    ]
-    expect([...rankTallies(items).entries()]).toEqual([
-      ['a', 1],
-      ['b', null],
-      ['c', null],
+  it('ranks everyone, even with nothing done', () => {
+    const ranks = rankScores([
+      { id: 'a', name: 'Ana', score: { met: 0, total: 0 } },
+      { id: 'b', name: 'Ben', score: { met: 0, total: 0 } },
     ])
-    // The minimum is a setting, but nothing recorded is never ranked.
-    expect(rankTallies(items, 1).get('b')).toBe(1)
-    expect(rankTallies([{ id: 'e', name: 'Ed', tally: { attended: 0, recorded: 0 } }], 0).get('e')).toBeNull()
-  })
-})
-
-describe('changeFor', () => {
-  it('reads the move since the last training', () => {
-    expect(changeFor(3, 5, true)).toEqual({ kind: 'up', places: 2 })
-    expect(changeFor(5, 3, true)).toEqual({ kind: 'down', places: 2 })
-    expect(changeFor(4, 4, true)).toEqual({ kind: 'same' })
-    expect(changeFor(4, null, true)).toEqual({ kind: 'new' })
-    expect(changeFor(null, null, true)).toEqual({ kind: 'none' })
-    expect(changeFor(1, 1, false)).toEqual({ kind: 'none' })
+    expect(Object.fromEntries(ranks)).toEqual({ a: 1, b: 1 })
   })
 })
 
 describe('standings', () => {
-  // Five recorded before today (t6). Fi has only two of them, Ed none.
-  const model = buildModel(
-    rowsFor(SIX, { Ana: 'aaaaa-', Ben: 'maaaa-', Cy: 'aaaam-', Di: 'mmaaa-', Ed: '-----a', Fi: '---aaa' }),
-  )
-  const rows = standings(model, ctx6)
-  const by = (list: typeof rows) => Object.fromEntries(list.map((r) => [r.rep.name, r]))
+  const model = modelOf({
+    Zed: '3 in person, 6 virtual, 2 fairs, 1 hub', // 1 met, 12 stamps
+    Ana: '4 in person, 2 fairs, 2 hub', // 3 met, 8 stamps
+    Ben: '4 in person, 2 fairs, 1 hub', // 2 met, 7 stamps
+    Cy: '4 in person, 2 fairs, 1 hub', // the same as Ben
+    Di: '1 virtual',
+  })
+  const board = standings(model, TODAY)
 
-  it('sorts by rank, alphabetical inside a tie, unranked last', () => {
-    expect(rows.map((r) => [r.rep.name, r.rank])).toEqual([
-      ['Ana', 1],
-      ['Ben', 2],
-      ['Cy', 2],
-      ['Di', 4],
-      ['Ed', null],
-      ['Fi', null],
+  it('ranks by minimums met, then by stamps, with ties in name order', () => {
+    expect(order(board)).toEqual(['1 Ana', '2T Ben', '2T Cy', '4 Zed', '5 Di'])
+  })
+
+  it('gives every rep a number rank and their status', () => {
+    expect(board.every((r) => Number.isInteger(r.rank))).toBe(true)
+    expect(board.map((r) => r.status)).toEqual(['out-of-reach', 'out-of-reach', 'out-of-reach', 'out-of-reach', 'out-of-reach'])
+    const early = standings(model, { today: '2026-07-01' })
+    expect(early.every((r) => r.status === 'to-go')).toBe(true)
+  })
+
+  it('puts qualified reps first and marks them above the line', () => {
+    const rows = standings(modelOf({ Ana: DONE, Ben: ALL, Cy: '6 in person, 6 virtual, 4 fairs, 8 hub, fall, spring' }), TODAY)
+    expect(order(rows)).toEqual(['1 Ben', '2 Cy', '3 Ana'])
+    expect(rows.map((r) => [r.above, r.status])).toEqual([
+      [true, 'qualified'],
+      [false, 'on-track'],
+      [false, 'on-track'],
     ])
   })
 
-  it('marks the reps who share a rank', () => {
-    expect(rows.map((r) => r.tied)).toEqual([false, true, true, false, false, false])
+  it('marks ties from the whole board, so a filtered board keeps them', () => {
+    const cy = board.find((r) => r.rep.name === 'Cy')!
+    expect(cy.tied).toBe(true)
+    // Filtering out Ben doesn't make Cy's rank any less shared.
+    expect(board.filter((r) => r.rep.name !== 'Ben').find((r) => r.rep.name === 'Cy')!.tied).toBe(true)
   })
 
-  it('keeps the tie when the board is filtered down to one of them', () => {
-    const twoTeams = buildModel([...rowsFor(SIX, { Ana: 'aaaaa-', Ben: 'maaaa-' }), ...rowsFor(SIX, { Cy: 'aaaam-' }, 'NetSec')])
-    const netsec = standings(twoTeams, ctx6).filter((r) => r.rep.team === 'NetSec')
-    expect(netsec.map((r) => [r.rep.name, r.rank, r.tied])).toEqual([['Cy', 2, true]])
+  it('has no movement when every stamp landed on one day', () => {
+    const one = standings(modelOf({ Ana: '', Ben: '' }, [stampRow('Ana', 'fair', '2027-03-04'), stampRow('Ben', 'hub', '2027-03-04')]), TODAY)
+    expect(one.map((r) => r.change)).toEqual([{ kind: 'none' }, { kind: 'none' }])
   })
 
-  it('works out movement against the training before', () => {
-    // Before t5: Ana and Cy 4 of 4 (tied 1st), Ben 3 of 4 (3rd), Di 2 of 4 (4th).
-    const change = Object.fromEntries(rows.map((r) => [r.rep.name, r.change]))
-    expect(change.Ana).toEqual({ kind: 'same' })
-    expect(change.Ben).toEqual({ kind: 'up', places: 1 })
-    expect(change.Cy).toEqual({ kind: 'down', places: 1 })
-    expect(change.Di).toEqual({ kind: 'same' })
-    expect(change.Ed).toEqual({ kind: 'none' })
-    expect(change.Fi).toEqual({ kind: 'none' })
+  it('has no movement before anyone has a stamp', () => {
+    expect(standings(modelOf({ Ana: '', Ben: '' }), TODAY).map((r) => r.change.kind)).toEqual(['none', 'none'])
+  })
+})
+
+describe('change since the last stamp day', () => {
+  // Ana and Ben each have a fair in March. Then Ben gets another fair and a
+  // Hub course on today's date, which takes him past Ana.
+  const cast = { Ana: '', Ben: '', Cy: '' }
+  const march = [stampRow('Ana', 'fair', '2027-03-04'), stampRow('Ana', 'hub', '2027-03-05'), stampRow('Ben', 'fair', '2027-03-04')]
+  const today = [stampRow('Ben', 'fair', DEMO_TODAY, { event: 'Summer Supplier Fair' }), stampRow('Ben', 'hub', DEMO_TODAY)]
+
+  it('compares the board with the day before the last stamp day', () => {
+    const rows = standings(modelOf(cast, [...march, ...today]), TODAY)
+    expect(rows.map((r) => [r.rep.name, r.rank, r.change])).toEqual([
+      ['Ben', 1, { kind: 'up', places: 1 }],
+      ['Ana', 2, { kind: 'down', places: 1 }],
+      ['Cy', 3, { kind: 'same' }],
+    ])
   })
 
-  it('marks who is above the line and where the line falls', () => {
-    // Fi is at 2 of 2, but unranked reps never count as above.
-    expect(rows.map((r) => r.above)).toEqual([true, true, true, false, false, false])
-    expect(lineIndex(rows)).toBe(3)
+  it('looks back from the last stamp day, not from today', () => {
+    // Without today's stamps the last day is March 5, when Ana's Hub course
+    // put her ahead of Ben, who was level with her the day before.
+    const rows = standings(modelOf(cast, march), TODAY)
+    expect(rows.map((r) => [r.rep.name, r.rank, r.change])).toEqual([
+      ['Ana', 1, { kind: 'same' }],
+      ['Ben', 2, { kind: 'down', places: 1 }],
+      ['Cy', 3, { kind: 'same' }],
+    ])
   })
 
-  it("ranks a rep once today's training makes their third", () => {
-    const after = by(standings(model, { ...ctx6, todayRecorded: true }))
-    expect(after.Fi.rank).toBe(1) // 3 of 3, tied with Ana's 5 of 5
-    expect(after.Fi.tied).toBe(true)
-    expect(after.Fi.change).toEqual({ kind: 'new' })
-    expect(after.Ben.change).toEqual({ kind: 'down', places: 1 })
+  it('ignores stamps dated after today', () => {
+    const later = [stampRow('Cy', 'fair', '2027-06-20'), stampRow('Cy', 'hub', '2027-06-21'), stampRow('Cy', 'quota', '2027-06-30')]
+    const rows = standings(modelOf(cast, [...march, ...today, ...later]), TODAY)
+    expect(rows.map((r) => [r.rep.name, r.stats.total, r.change.kind])).toEqual([
+      ['Ben', 3, 'up'],
+      ['Ana', 2, 'down'],
+      ['Cy', 0, 'same'],
+    ])
   })
+})
 
-  it('keeps a new hire unranked at 1 of 1', () => {
-    const after = by(standings(model, { ...ctx6, todayRecorded: true }))
-    expect(after.Ed.stats.attended).toBe(1)
-    expect(after.Ed.stats.recorded).toBe(1)
-    expect(after.Ed.rank).toBeNull()
-    expect(after.Ed.above).toBe(false)
-    expect(after.Ed.change).toEqual({ kind: 'none' })
+describe('changeFor', () => {
+  it('reads up, down, the same, or nothing to compare with', () => {
+    expect(changeFor(3, 5, true)).toEqual({ kind: 'up', places: 2 })
+    expect(changeFor(5, 3, true)).toEqual({ kind: 'down', places: 2 })
+    expect(changeFor(4, 4, true)).toEqual({ kind: 'same' })
+    expect(changeFor(4, undefined, true)).toEqual({ kind: 'none' })
+    expect(changeFor(4, 1, false)).toEqual({ kind: 'none' })
+  })
+})
+
+describe('dayBefore', () => {
+  it('steps back across months, years and leap days', () => {
+    expect(dayBefore('2027-06-17')).toBe('2027-06-16')
+    expect(dayBefore('2027-03-01')).toBe('2027-02-28')
+    expect(dayBefore('2028-03-01')).toBe('2028-02-29')
+    expect(dayBefore('2027-01-01')).toBe('2026-12-31')
+  })
+})
+
+describe('lineIndex', () => {
+  it('falls after the last qualified rep', () => {
+    expect(lineIndex([fakeRow('A', 1, { met: 5 }), fakeRow('B', 2, { met: 5 }), fakeRow('C', 3, { met: 4 })])).toBe(2)
+  })
+  it('sits at the top when nobody has qualified, and at the bottom when everyone has', () => {
+    expect(lineIndex([fakeRow('A', 1, { met: 4 }), fakeRow('B', 2)])).toBe(0)
+    expect(lineIndex([fakeRow('A', 1, { met: 5 }), fakeRow('B', 1, { met: 5 })])).toBe(2)
+    expect(lineIndex([])).toBe(0)
+  })
+  it('matches a real board', () => {
+    const rows = standings(modelOf({ Ana: ALL, Ben: DONE, Cy: ALL, Di: '1 fair' }), TODAY)
+    expect(lineIndex(rows)).toBe(2)
+    expect(rows.slice(0, 2).map((r) => r.rep.name)).toEqual(['Ana', 'Cy'])
   })
 })
 
 describe('figuresFor', () => {
-  it('computes the three numbers', () => {
-    const model = buildModel(rowsFor(FOUR, { Ana: 'aaa', Ben: 'maa', Ed: '----' }))
-    const rows = standings(model, ctx)
-    const figures = figuresFor(rows, model, ctx)
-    expect(figures.above).toBe(1)
-    expect(figures.ranked).toBe(2)
-    expect(figures.averageRate).toBeCloseTo((1 + 2 / 3) / 2)
-    expect(figures.held).toBe(3)
-    expect(figures.total).toBe(4)
+  it('counts qualified, activities done and the average stamps', () => {
+    const rows = standings(modelOf({ Ana: ALL, Ben: DONE, Cy: '2 fairs', Di: '' }), TODAY)
+    expect(figuresFor(rows)).toEqual({ qualified: 1, activitiesDone: 2, averageStamps: (11 + 10 + 2 + 0) / 4, reps: 4 })
   })
-  it('leaves unranked reps out of the line count and the average', () => {
-    const model = buildModel(rowsFor(SIX, { Ana: 'aaaaa-', Di: 'mmaaa-', Fi: '---aaa' }))
-    const figures = figuresFor(standings(model, ctx6), model, ctx6)
-    expect(figures.above).toBe(1)
-    expect(figures.ranked).toBe(2)
-    expect(figures.averageRate).toBeCloseTo((1 + 3 / 5) / 2)
-  })
-  it('has no average with nobody ranked', () => {
-    const model = buildModel(rowsFor(FOUR, { Ed: '----' }))
-    expect(figuresFor(standings(model, ctx), model, ctx).averageRate).toBeNull()
+  it('works on whatever rows are showing, and has no average for none', () => {
+    expect(figuresFor([])).toEqual({ qualified: 0, activitiesDone: 0, averageStamps: null, reps: 0 })
+    expect(figuresFor([fakeRow('A', 1, { met: 4, total: 9, activitiesDone: true })])).toEqual({
+      qualified: 0,
+      activitiesDone: 1,
+      averageStamps: 9,
+      reps: 1,
+    })
   })
 })
