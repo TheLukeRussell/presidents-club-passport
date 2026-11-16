@@ -174,4 +174,4 @@ mkdirSync(dirname(OUT), { recursive: true })
 writeFileSync(OUT, `{\n  "reps": [\n${lines(repsOut)}\n  ],\n  "stamps": [\n${lines(stampsOut)}\n  ]\n}\n`)
 
 console.log(`\nWrote ${relative(ROOT, OUT)}. It’s gitignored, and only the dev server reads it:`)
-console.log('  npm run dev, then open http://localhost:5174/supplier-training-passport/?data=local#/standings\n')
+console.log('  npm run dev, then open http://localhost:5174/presidents-club-passport/?data=local#/standings\n')

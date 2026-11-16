@@ -8,7 +8,7 @@ import { defineConfig, devices } from '@playwright/test'
 // PORT=... runs it against a dev server on another port, so two checkouts
 // can test at the same time.
 const PORT = Number(process.env.PORT) || 5175
-const BASE = `http://localhost:${PORT}/supplier-training-passport/`
+const BASE = `http://localhost:${PORT}/presidents-club-passport/`
 
 export default defineConfig({
   testDir: 'tests',
