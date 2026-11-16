@@ -4,7 +4,7 @@
 // events here, the stamper brings today's stamp down and an endorsement gets
 // written in under the slots.
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ACTIVITY_NAMES, SLOTS, type SlotActivity } from '../../config'
 import { plural } from '../../lib/format'
 import { countOf, endorsement } from '../../lib/messages'
@@ -34,8 +34,6 @@ interface Props {
 const MOMENT_MS = 1900
 // When the ink shows: as the stamper lifts, 64% of --dur-press.
 const INK_MS = 900
-// A little air between a row and the sticky page bar.
-const BAR_GAP = 8
 
 // The longest endorsement this page could ever get: a recording that meets
 // the minimum and leaves the rep qualified. Its room is kept on every
@@ -78,7 +76,6 @@ function Count({ p, stamps, reserve = false }: { p: Progress; stamps: number; re
 export function ActivityPage({ page, activity, rep, stats, ctx, landing, onLanded, onOpen, still }: Props) {
   const reduced = useReducedMotion()
   const [open, setOpen] = useState(false)
-  const moreRef = useRef<HTMLDetailsElement>(null)
   const p = stats.progress[activity]
   const slots = SLOTS[activity]
 
@@ -123,19 +120,10 @@ export function ActivityPage({ page, activity, rep, stats, ctx, landing, onLande
     }
   }, [playing, reduced, onLanded])
 
-  // A full page has no slot for today's stamp, so it lands in the list
-  // instead: open it (and keep it open after), and bring the new row on
-  // screen if it isn't, clear of the sticky page bar.
-  if (inList && !open) setOpen(true)
-  useEffect(() => {
-    if (!inList) return
-    const row = moreRef.current?.querySelector<HTMLElement>('.extra.is-new')
-    if (!row) return
-    const box = row.getBoundingClientRect()
-    const bar = document.querySelector('.passport__controls')
-    const floor = Math.min(window.innerHeight, bar && getComputedStyle(bar).position === 'sticky' ? bar.getBoundingClientRect().top - BAR_GAP : Infinity)
-    if (box.top < 0 || box.bottom > floor) row.scrollIntoView({ block: 'center' })
-  }, [inList])
+  // A full page has no slot for today's stamp, so it lands in the list. The
+  // list stays shut and its summary flashes in the stamp's ink instead:
+  // opening it on its own would make the book grow, and recording never
+  // should. The endorsement under it says what landed.
 
   const more = activity === 'hub' ? 'Also finished' : 'Also attended'
 
@@ -163,8 +151,8 @@ export function ActivityPage({ page, activity, rep, stats, ctx, landing, onLande
       </ul>
 
       {extras.length > 0 && (
-        <details ref={moreRef} className="activity__more" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
-          <summary className="activity__summary" tabIndex={still ? -1 : undefined}>
+        <details className="activity__more" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+          <summary className={`activity__summary${inList ? ` is-new activity__summary--ink-${ink}` : ''}`} tabIndex={still ? -1 : undefined}>
             {more} <span className="activity__more-count">{extras.length}</span>
           </summary>
           <ul className="activity__extras">
@@ -175,6 +163,13 @@ export function ActivityPage({ page, activity, rep, stats, ctx, landing, onLande
             ))}
           </ul>
         </details>
+      )}
+      {/* A page that's exactly full keeps room for the summary, since the
+          next stamp starts the list and the book shouldn't grow when it does. */}
+      {extras.length === 0 && stamps.length === slots && (
+        <p className="activity__summary activity__summary--reserve" aria-hidden="true">
+          {more} <span className="activity__more-count">1</span>
+        </p>
       )}
 
       {/* The endorsement, in today's stamp's ink, over the room kept for the

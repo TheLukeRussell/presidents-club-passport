@@ -6,7 +6,7 @@ import { ACTIVITIES, DEMO_REP, DEMO_SEED, DEMO_SHARE, DEMO_TODAY, type Activity 
 import { DataError, loadData } from '../data/source'
 import type { PassportData } from '../data/types'
 import type { Span } from '../lib/board'
-import { demoStamp, demoStamps, GROUP_EVENTS, pickAttendees, pickDefaultRep } from '../lib/demo'
+import { demoStamp, demoStamps, GROUP_EVENTS, landingKey, pickAttendees, pickDefaultRep } from '../lib/demo'
 import { buildModel, findRep, withStamps, type Model, type Rep } from '../lib/model'
 import { standings, type StandingRow } from '../lib/ranking'
 import type { Context } from '../lib/rules'
@@ -39,9 +39,6 @@ interface Ready {
 
 // Why Record can't run for a rep right now, or null when it can.
 export type RecordBlock = 'recorded' | 'has-it' | 'nothing-left' | null
-
-// A stamp that still has its moment to play, as `${email}|${activity}`.
-export const landingKey = (email: string, activity: Activity) => `${email}|${activity}`
 
 interface AppValue {
   status: LoadStatus

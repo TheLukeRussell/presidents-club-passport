@@ -7,6 +7,9 @@ import { findRep, stampsOf, type Model, type Rep } from './model'
 import { unitFor } from './random'
 import { repStats, type Context } from './rules'
 
+// A stamp that still has its moment to play, as `${email}|${activity}`.
+export const landingKey = (email: string, activity: Activity) => `${email}|${activity}`
+
 // Trainings, fairs and Club Express happen in a room full of reps. A Hub
 // course and the quota are one rep's own.
 export const GROUP_EVENTS: readonly Activity[] = ['training', 'fair', 'club']

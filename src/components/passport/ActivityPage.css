@@ -90,11 +90,23 @@
 .activity__endorse > * { grid-area: 1 / 1; }
 .activity__endorse > .visa__endorse { margin-top: 0; align-self: end; }
 
+/* The room kept on an exactly full page for the summary the next stamp brings. */
+.activity__summary--reserve { visibility: hidden; }
+
+/* Today's stamp went into the list: the summary flashes a tint of its ink,
+   like a new row would, then settles. */
+.activity__summary--ink-1 { --extra-ink: var(--color-stamp-1); }
+.activity__summary--ink-2 { --extra-ink: var(--color-stamp-2); }
+.activity__summary--ink-3 { --extra-ink: var(--color-stamp-3); }
+.activity__summary.is-new { animation: extra-new var(--dur-press) var(--ease-out) both; }
+
 @media (prefers-reduced-motion: reduce) {
   .activity__summary::before { transition: none; }
+  .activity__summary.is-new { animation: none; }
 }
 
 /* High contrast: the count badge keeps its edge. */
 @media (forced-colors: active) {
   .activity__more-count { border-color: CanvasText; }
+  .activity__summary.is-new { outline: 2px solid Highlight; outline-offset: 2px; }
 }

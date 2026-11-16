@@ -53,7 +53,7 @@
   .book__slot .page,
   .passport__stage .cover__open::before { cursor: grab; }
   .passport__stage.is-held,
-  .passport__stage.is-held :is(.page, .cover__open, .slot),
+  .passport__stage.is-held :is(.page, .cover__open, .slot, .extra, .activity__summary, .checklist__row),
   .passport__stage.is-held .cover__open::before { cursor: grabbing; }
 }
 
