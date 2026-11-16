@@ -16,6 +16,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "data": "node scripts/generate-data.ts",
+    "import": "node scripts/import-sheet.ts",
     "lint": "oxlint",
     "preview": "vite preview",
     "test:iphone": "IPHONE=1 playwright test --project=phone-iphone-16-pro-max"

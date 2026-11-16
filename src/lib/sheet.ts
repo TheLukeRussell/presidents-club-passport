@@ -4,8 +4,8 @@
 // "Supplier Fair" for fair, 6/17/2027 or an Excel date number for a date.
 // Anything it can't use gets dropped with a note saying which row and why.
 
-import { ACTIVITIES, type Activity } from '../config.ts'
-import type { PassportData, RepRow, StampRow, TrainingFormat } from '../data/types'
+import { ACTIVITIES, TEAMS, type Activity } from '../config.ts'
+import type { PassportData, RepRow, StampRow, TrainingFormat } from '../data/types.ts'
 
 // Header spellings people actually use, mapped to the column they mean.
 const HEADERS: Record<string, string[]> = {
@@ -33,14 +33,16 @@ function headerKey(cell: unknown): string {
 }
 
 // A grid with its header row first becomes one object per row. Rows with
-// nothing in them (the sheet's blank tail) are skipped.
+// nothing in them (the sheet's blank tail) are skipped, and each record keeps
+// its sheet row number in _row, so a problem still points at the right row
+// after a blank one.
 export function tableToRecords(values: readonly (readonly unknown[])[]): Record<string, unknown>[] {
   const [header, ...rows] = values
   if (!header) return []
   const keys = header.map(headerKey)
-  return rows
-    .filter((row) => row.some((cell) => String(cell ?? '').trim() !== ''))
-    .map((row) => Object.fromEntries(keys.map((key, i) => [key, row[i] ?? ''])))
+  return rows.flatMap((row, i) =>
+    row.some((cell) => String(cell ?? '').trim() !== '') ? [{ ...Object.fromEntries(keys.map((key, k) => [key, row[k] ?? ''])), _row: i + 2 }] : [],
+  )
 }
 
 // Activity names as people write them. Checked in order, first match wins.
@@ -72,7 +74,8 @@ const pad = (n: number) => String(n).padStart(2, '0')
 // for anything else.
 export function parseDate(value: unknown): string {
   if (typeof value === 'number' && Number.isFinite(value) && value > 20000 && value < 80000) {
-    const date = new Date(Date.UTC(1899, 11, 30) + Math.round(value) * 86400000)
+    // The fraction is the time of day, so 46555.6 is still June 17.
+    const date = new Date(Date.UTC(1899, 11, 30) + Math.floor(value) * 86400000)
     return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`
   }
   const text = String(value ?? '').trim()
@@ -81,7 +84,9 @@ export function parseDate(value: unknown): string {
   let y: number, m: number, d: number
   if (iso) [y, m, d] = [Number(iso[1]), Number(iso[2]), Number(iso[3])]
   else if (us) [m, d, y] = [Number(us[1]), Number(us[2]), Number(us[3].length === 2 ? `20${us[3]}` : us[3])]
-  else if (/^\d+(\.\d+)?$/.test(text)) return parseDate(Number(text))
+  // Digits typed as text, like "46555", read as an Excel date number. A real
+  // number that got this far is out of range, so it's no date at all.
+  else if (typeof value !== 'number' && /^\d+(\.\d+)?$/.test(text)) return parseDate(Number(text))
   else return ''
   const check = new Date(Date.UTC(y, m - 1, d))
   if (check.getUTCFullYear() !== y || check.getUTCMonth() !== m - 1 || check.getUTCDate() !== d) return ''
@@ -95,7 +100,10 @@ export function toRepRow(raw: Record<string, unknown>): RepRow | string {
   if (!rep_email.includes('@')) return 'no email'
   const rep_name = text(raw.rep_name)
   if (!rep_name) return 'no name'
-  return { rep_email, rep_name, team: text(raw.team), start_date: parseDate(raw.start_date) }
+  // "posb" or "NETSEC" still lands on the team's real name.
+  const team = text(raw.team)
+  const known = TEAMS.find((t) => t.toLowerCase() === team.toLowerCase())
+  return { rep_email, rep_name, team: known ?? team, start_date: parseDate(raw.start_date) }
 }
 
 export function toStampRow(raw: Record<string, unknown>): StampRow | string {
@@ -117,29 +125,35 @@ export interface Cleaned {
   problems: string[]
 }
 
+// The sheet row a record came from: _row from tableToRecords, or its place
+// in the list when it came from JSON. Rows count the header, so the first
+// data row is row 2.
+const sheetRow = (raw: Record<string, unknown>, i: number) => (typeof raw._row === 'number' ? raw._row : i + 2)
+
 // Both tabs at once, so a stamp for an email that isn't on the Reps tab can be
 // caught, and the same stamp typed in twice only counts once.
 export function cleanData(reps: Record<string, unknown>[], stamps: Record<string, unknown>[]): Cleaned {
   const problems: string[] = []
   const repRows = new Map<string, RepRow>()
   reps.forEach((raw, i) => {
+    const at = sheetRow(raw, i)
     const row = toRepRow(raw)
-    if (typeof row === 'string') problems.push(`Reps row ${i + 2}: ${row}`)
-    else if (repRows.has(row.rep_email)) problems.push(`Reps row ${i + 2}: ${row.rep_email} is listed twice`)
+    if (typeof row === 'string') problems.push(`Reps row ${at}: ${row}`)
+    else if (repRows.has(row.rep_email)) problems.push(`Reps row ${at}: ${row.rep_email} is listed twice`)
     else repRows.set(row.rep_email, row)
   })
-  // Sheet row numbers count the header, so data row 0 is row 2.
   const seen = new Map<string, number>()
   const stampRows: StampRow[] = []
   stamps.forEach((raw, i) => {
+    const at = sheetRow(raw, i)
     const row = toStampRow(raw)
-    if (typeof row === 'string') return void problems.push(`Stamps row ${i + 2}: ${row}`)
-    if (!repRows.has(row.rep_email)) return void problems.push(`Stamps row ${i + 2}: ${row.rep_email} isn’t on the Reps tab`)
+    if (typeof row === 'string') return void problems.push(`Stamps row ${at}: ${row}`)
+    if (!repRows.has(row.rep_email)) return void problems.push(`Stamps row ${at}: ${row.rep_email} isn’t on the Reps tab`)
     const key = `${row.rep_email}|${row.activity}|${row.event.toLowerCase()}|${row.date}`
     const first = seen.get(key)
-    if (first !== undefined) return void problems.push(`Stamps row ${i + 2}: the same stamp is already on row ${first}`)
-    if (row.activity === 'training' && !row.format) problems.push(`Stamps row ${i + 2}: no format, so it counts as virtual`)
-    seen.set(key, i + 2)
+    if (first !== undefined) return void problems.push(`Stamps row ${at}: the same stamp is already on row ${first}`)
+    if (row.activity === 'training' && !row.format) problems.push(`Stamps row ${at}: no format, so it counts as virtual`)
+    seen.set(key, at)
     stampRows.push(row)
   })
   return { data: { reps: [...repRows.values()], stamps: stampRows }, problems }

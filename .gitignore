@@ -18,6 +18,8 @@ dist
 *.xlsx
 .env
 .env.*
+# npm run import writes the real sheet here: real names, public repo.
+public/data/local.json
 
 # Test coverage reports
 coverage/
