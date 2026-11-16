@@ -16,8 +16,10 @@ import './GoldSeal.css'
 
 const SCALLOPS = 36
 const JOIN = 90 // where two scallops meet, in a 200 wide box centred on 0
-const TEXT = `PRESIDENT’S CLUB · ${FISCAL_YEAR} · QUOTA ACHIEVED · `
-const CLUB_TEXT = `PRESIDENT’S CLUB · QUALIFIED · ${FISCAL_YEAR} · `
+// Each seal's lettering: one line over the top, one along the bottom.
+const TOP = 'PRESIDENT’S CLUB'
+const QUOTA_BOTTOM = `QUOTA ACHIEVED · ${FISCAL_YEAR}`
+const CLUB_BOTTOM = `QUALIFIED · ${FISCAL_YEAR}`
 const RAYS = 40 // points on the President's Club seal's sunburst edge
 
 const pt = (r: number, a: number) => `${(r * Math.cos(a)).toFixed(2)} ${(r * Math.sin(a)).toFixed(2)}`
@@ -38,6 +40,26 @@ function sunburst(): string {
   let d = ''
   for (let i = 0; i < RAYS * 2; i++) d += `${i ? 'L' : 'M'}${pt(i % 2 ? 86 : 94, -Math.PI / 2 + (i * Math.PI) / RAYS)}`
   return `${d}Z`
+}
+
+// Lettering round a seal that always reads upright: the top line runs over
+// the top of a circle and the bottom line along the bottom, each centred on
+// its arc (text-anchor middle at 50%), with a dot at either side. The bottom
+// line's letters hang inward from its path, so its path sits a cap height
+// further out and both lines fill the same band.
+function lettering(top: string, bottom: string, r: number, size: number): string {
+  const cap = size * 0.72
+  const low = r + cap
+  const font = `font-family='Helvetica Neue, Helvetica, Arial, sans-serif' font-weight='700' font-size='${size}' letter-spacing='0.6' text-anchor='middle'`
+  const dot = (x: number) => `<circle cx='${x.toFixed(2)}' cy='0' r='1.7'/>`
+  return (
+    `<path id='top' fill='none' d='M${-r} 0A${r} ${r} 0 0 1 ${r} 0'/>` +
+    `<path id='bottom' fill='none' d='M${-low} 0A${low} ${low} 0 0 0 ${low} 0'/>` +
+    `<text ${font}><textPath xlink:href='#top' startOffset='50%'>${top}</textPath></text>` +
+    `<text ${font}><textPath xlink:href='#bottom' startOffset='50%'>${bottom}</textPath></text>` +
+    dot(-(r + cap / 2)) +
+    dot(r + cap / 2)
+  )
 }
 
 // A five-point star, point up.
@@ -64,11 +86,8 @@ function engraving(lettered: boolean): string {
   const rings = lettered
     ? `<g fill='none' stroke='black'><circle r='85' stroke-width='1.5'/><circle r='79' stroke-width='1.25'/><circle r='56' stroke-width='1.25'/><circle r='50' stroke-width='0.75'/></g>`
     : `<g fill='none' stroke='black'><circle r='83' stroke-width='4'/><circle r='68' stroke-width='9' stroke-dasharray='3 4.1'/><circle r='53' stroke-width='4'/></g>`
-  // The lettering starts at nine o'clock and runs clockwise, turned a little
-  // so PRESIDENT’S CLUB sits centred across the top.
-  const words = lettered
-    ? `<path id='t' fill='none' d='M-64 0A64 64 0 1 1 64 0A64 64 0 1 1 -64 0'/><text transform='rotate(23)' font-family='Helvetica Neue, Helvetica, Arial, sans-serif' font-weight='700' font-size='12.5'><textPath xlink:href='#t' textLength='398' lengthAdjust='spacing'>${TEXT}</textPath></text>`
-    : ''
+  // The lettering sits in the band between the rings at 56 and 79.
+  const words = lettered ? lettering(TOP, QUOTA_BOTTOM, 63, 12.5) : ''
   return uri(svg(`${rings}${words}<path d='${star(lettered ? 34 : 38, lettered ? 13.5 : 15.5)}'/>`))
 }
 const ENGRAVING = { small: engraving(false), large: engraving(true) }
@@ -90,13 +109,13 @@ function laurel(r: number): string {
   return out
 }
 
-// The President's Club engraving: rings, the lettering turned so PRESIDENT’S
-// CLUB sits across the top, and the wreath round a globe in the middle.
+// The President's Club engraving: rings, the lettering in the band between
+// the rings at 52 and 74, and the wreath round a globe in the middle.
 const CLUB_SHAPE = uri(svg(`<path d='${sunburst()}'/>`))
 const CLUB_ENGRAVING = uri(
   svg(
     `<g fill='none' stroke='black'><circle r='80' stroke-width='1.5'/><circle r='74' stroke-width='1'/><circle r='52' stroke-width='1.25'/><circle r='47' stroke-width='0.75'/></g>` +
-      `<path id='t' fill='none' d='M-62 0A62 62 0 1 1 62 0A62 62 0 1 1 -62 0'/><text transform='rotate(14)' font-family='Helvetica Neue, Helvetica, Arial, sans-serif' font-weight='700' font-size='12'><textPath xlink:href='#t' textLength='386' lengthAdjust='spacing'>${CLUB_TEXT}</textPath></text>` +
+      lettering(TOP, CLUB_BOTTOM, 59, 12) +
       laurel(35) +
       `<g fill='none' stroke='black' stroke-width='2'><circle r='19'/><ellipse rx='8' ry='19'/><path d='M-19 0H19M-16.5 -9.5H16.5M-16.5 9.5H16.5'/></g>`,
   ),
