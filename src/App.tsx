@@ -12,7 +12,8 @@ import { PROGRAM_YEAR } from './config'
 import { findRep, type Model } from './lib/model'
 import { useApp } from './state/AppState'
 
-const PRODUCT = `Training Passport ${PROGRAM_YEAR}`
+// Short, for the end of every tab title. The full name is in index.html.
+const PRODUCT = `President’s Club ${PROGRAM_YEAR}`
 // The two real screens. Anything else redirects to one of them.
 const SCREEN = /^\/(passport\/[^/]+|standings)$/
 
@@ -21,7 +22,7 @@ const SCREEN = /^\/(passport\/[^/]+|standings)$/
 function titleFor(pathname: string, model: Model | null): string {
   if (pathname === '/standings') return `Standings · ${PRODUCT}`
   const repId = /^\/passport\/([^/]+)$/.exec(pathname)?.[1]
-  if (!repId) return `Supplier ${PRODUCT}`
+  if (!repId) return `President’s Club Passport ${PROGRAM_YEAR}`
   if (!model) return `Passport · ${PRODUCT}`
   const rep = findRep(model, repId)
   return rep ? `${rep.name}’s passport · ${PRODUCT}` : `No passport found · ${PRODUCT}`

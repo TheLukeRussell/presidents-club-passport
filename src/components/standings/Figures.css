@@ -2,8 +2,8 @@
    the unit right after so each number says what it counts. */
 
 /* Columns start from their content, then share what's left, so a long team
-   name in a unit ("across ranked Communications reps") takes room from
-   the short ones instead of wrapping. */
+   name in a unit ("of 12 Communications reps") takes room from the short
+   ones instead of wrapping. */
 .figures {
   display: grid;
   grid-template-columns: repeat(3, auto);
@@ -39,7 +39,7 @@
 .figures__unit { color: var(--color-ink-2); }
 
 /* Phones: one figure per row, the label over the number, so a long unit
-   like "across ranked Communications reps" has the whole width to sit on one line. */
+   like "reps have all four, quota or not" has the whole width to sit on one line. */
 @media (max-width: 40rem) {
   .figures { grid-template-columns: minmax(0, 1fr); }
   .figures__item { display: flex; flex-direction: column; align-items: flex-start; gap: 0; padding: var(--space-xs) 0; border-left: 0; border-top: 1px solid var(--color-rule); }

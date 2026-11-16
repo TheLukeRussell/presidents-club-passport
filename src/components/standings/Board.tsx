@@ -1,16 +1,18 @@
-// The board: reps ranked, with the President's Club line drawn across it like
-// a cut line on a golf leaderboard. Past a couple dozen reps it's a short
-// board (lib/board.ts): the top, the line and you, with gap rows that open
-// the rest. When today's attendance gets recorded, rows slide from their old
-// spots to their new ones.
+// The board: reps ranked by minimums met, then stamps, with the President's
+// Club line drawn across it like a cut line on a golf leaderboard. Past a
+// couple dozen reps it's a short board (lib/board.ts): the top, the line and
+// you, with gap rows that open the rest. When the demo records a stamp, rows
+// slide from their old spots to their new ones.
 
 import { memo, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import { LINE } from '../../config'
+import { ACTIVITIES, ACTIVITY_NAMES, QUOTA_DATE, type Activity } from '../../config'
 import { boardPieces, openFrom, type Piece, type Span } from '../../lib/board'
 import { DATA_PAGE } from '../../lib/book'
-import { lineIndex, type Change, type StandingRow } from '../../lib/ranking'
-import { percentOf } from '../../lib/rules'
+import { longDate, plural } from '../../lib/format'
+import { progressLabel, quotaWhen, statusWord } from '../../lib/messages'
+import { dayBefore, lineIndex, type Change, type StandingRow } from '../../lib/ranking'
+import { lastStampDay } from '../../lib/rules'
 import { useApp, type SlideFrom } from '../../state/AppState'
 import { useReducedMotion } from '../../state/useMedia'
 import './Board.css'
@@ -34,8 +36,24 @@ const EASE_OUT = 'cubic-bezier(0.16, 1, 0.3, 1)'
 // Reps coming out of a gap fade in right away. Anything still passing over
 // them is opaque and on top, so waiting would only leave holes in the board.
 const FADE_MS = SLIDE_MS / 3
+const COLUMNS = 8
+const OF = ACTIVITIES.length
 
-function ChangeCell({ change }: { change: Change }) {
+// What each progress mark stands for, for the key over the board.
+const KEY_NAMES: Record<Activity, string> = {
+  training: 'trainings',
+  fair: 'fairs',
+  hub: 'Hub courses',
+  club: 'Club Express',
+  quota: 'quota',
+}
+
+// "June 16", no year: the whole board is one program year.
+const monthDay = (date: string) => longDate(date).replace(/, \d{4}$/, '')
+
+// How far a rep moved, and against what: the board as it stood the day
+// before the latest stamps came in.
+function ChangeCell({ change, since }: { change: Change; since: string | null }) {
   switch (change.kind) {
     case 'up':
     case 'down':
@@ -46,48 +64,60 @@ function ChangeCell({ change }: { change: Change }) {
           </svg>
           <span className="visually-hidden">{change.kind === 'up' ? 'Up' : 'Down'} </span>
           {change.places}
-          <span className="visually-hidden"> since the last training</span>
+          <span className="visually-hidden">
+            {' '}
+            {change.places === 1 ? 'place' : 'places'}
+            {since ? ` since ${since}` : ''}
+          </span>
         </span>
       )
     case 'same':
-      return <span className="move move--same">Same</span>
-    case 'new':
-      return <span className="move move--new">New</span>
+      return (
+        <span className="move move--same">
+          Same<span className="visually-hidden"> place{since ? ` as on ${since}` : ''}</span>
+        </span>
+      )
     case 'none':
       return <span className="visually-hidden">No change yet</span>
   }
 }
 
+// Five marks in activity order, filled once that minimum is met. Quota's
+// goes gold, like the seal it stands for.
+function Marks({ row }: { row: StandingRow }) {
+  return (
+    <>
+      <span className="board__marks" aria-hidden="true">
+        {ACTIVITIES.map((a) => (
+          <span key={a} className={`board__mark board__mark--${a}${row.stats.progress[a].met ? ' is-met' : ''}`} />
+        ))}
+      </span>
+      <span className="visually-hidden">
+        {ACTIVITIES.map((a) => {
+          const label = progressLabel(row.stats.progress[a])
+          return `${ACTIVITY_NAMES[a]} ${a === 'quota' ? label.toLowerCase() : label}`
+        }).join(', ')}
+      </span>
+    </>
+  )
+}
+
 // One rep. Memoised, so a keystroke in search or a gap opening doesn't redraw
 // the rows that stayed put.
-const RepRow = memo(function RepRow({ row, you }: { row: StandingRow; you: boolean }) {
-  const status = row.rank === null ? 'Unranked' : row.above ? 'Above' : 'Below'
+const RepRow = memo(function RepRow({ row, you, since }: { row: StandingRow; you: boolean; since: string | null }) {
   // Four characters, like T254, take a smaller size to fit a phone's rank
   // column. Three, like T24, only crowd your Ember block there.
-  const chars = row.rank === null ? 0 : `${row.tied ? 'T' : ''}${row.rank}`.length
+  const chars = `${row.tied ? 'T' : ''}${row.rank}`.length
   const size = chars > 3 ? ' board__rank--long' : chars === 3 ? ' board__rank--three' : ''
   return (
-    <tr
-      role="row"
-      data-rep={row.rep.id}
-      className={`board__row${row.rank === null ? ' is-unranked' : row.above ? ' is-above' : ' is-below'}${you ? ' is-you' : ''}`}
-    >
+    <tr role="row" data-rep={row.rep.id} className={`board__row${row.above ? ' is-above' : ' is-below'}${you ? ' is-you' : ''}`}>
       <td role="cell" className={`board__rank${size}`}>
-        {row.rank === null ? (
-          <>
-            <span aria-hidden="true">NR</span>
-            <span className="visually-hidden">Not ranked</span>
-          </>
-        ) : (
-          <>
-            {row.tied && <span className="visually-hidden">Tied </span>}
-            {row.tied ? 'T' : ''}
-            {row.rank}
-          </>
-        )}
+        {row.tied && <span className="visually-hidden">Tied </span>}
+        {row.tied ? 'T' : ''}
+        {row.rank}
       </td>
-      <td role="cell" className="board__change" data-label="Change">
-        <ChangeCell change={row.change} />
+      <td role="cell" className="board__change">
+        <ChangeCell change={row.change} since={since} />
       </td>
       <th role="rowheader" scope="row" className="board__rep">
         <Link to={`/passport/${row.rep.id}?page=${DATA_PAGE}`} className="board__link">
@@ -95,22 +125,23 @@ const RepRow = memo(function RepRow({ row, you }: { row: StandingRow; you: boole
         </Link>
         {you && <span className="tag tag--you">You</span>}
       </th>
-      <td role="cell" className="board__team" data-label="Team">
-        <span className="board__val">{row.rep.team}</span>
+      <td role="cell" className="board__team">
+        {row.rep.team}
       </td>
-      <td role="cell" className="board__stamps" data-label="Stamps">
-        <span className="board__val">
-          {row.stats.attended} of {row.stats.recorded}
-        </span>
+      <td role="cell" className="board__met">
+        {row.stats.met} of {OF}
+        <span className="visually-hidden"> met</span>
       </td>
-      <td role="cell" className="board__rate">
-        {row.stats.rate === null ? 'None' : `${percentOf(row.stats.rate)}%`}
+      <td role="cell" className="board__progress">
+        <Marks row={row} />
       </td>
-      <td role="cell" className="board__streak" data-label="Streak">
-        <span className="board__val">{row.stats.streak}</span>
+      <td role="cell" className="board__stamps">
+        {/* Phones drop the header row, so the unit shows there. */}
+        <span className="board__val">{row.stats.total}</span>
+        <span className="board__unit"> {row.stats.total === 1 ? 'stamp' : 'stamps'}</span>
       </td>
-      <td role="cell" className="board__status" data-label="Status">
-        {status}
+      <td role="cell" className={`board__status board__status--${row.status}`}>
+        {statusWord(row.status, row.stats)}
       </td>
     </tr>
   )
@@ -129,7 +160,7 @@ function GapRow({ gap, below, total, onOpen }: { gap: Piece; below: boolean; tot
   const places = count === 2 && all ? `${next.start + 1} and ${next.end}` : `${next.start + 1} to ${next.end}`
   return (
     <tr role="row" className={`board__gap${below ? ' is-below' : ''}`}>
-      <td role="cell" colSpan={8}>
+      <td role="cell" colSpan={COLUMNS}>
         <div className="board__gap-in">
           <svg className="board__gap-mark" viewBox="0 0 4 16" aria-hidden="true">
             <circle cx="2" cy="2" r="1.5" />
@@ -137,7 +168,7 @@ function GapRow({ gap, below, total, onOpen }: { gap: Piece; below: boolean; tot
             <circle cx="2" cy="14" r="1.5" />
           </svg>
           <span id={id} className="board__gap-count">
-            {count} more {count === 1 ? 'rep' : 'reps'}
+            {plural(count, 'more rep', 'more reps')}
           </span>
           <button
             type="button"
@@ -155,19 +186,30 @@ function GapRow({ gap, below, total, onOpen }: { gap: Piece; below: boolean; tot
 }
 
 export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onClear, jump }: Props) {
-  const { slideFrom, clearSlide } = useApp()
+  const { slideFrom, clearSlide, ready } = useApp()
   const reduced = useReducedMotion()
   const bodyRef = useRef<HTMLTableSectionElement>(null)
 
+  // Change compares each rank with the board the day before the latest stamps.
+  const model = ready?.model
+  const ctx = ready?.ctx
+  const since = useMemo(() => {
+    const latest = model && ctx ? lastStampDay(model, ctx) : null
+    return latest ? monthDay(dayBefore(latest)) : null
+  }, [model, ctx])
+
   const cut = lineIndex(rows)
+  // Nobody over the line yet. Rather than leave the line hanging off the top,
+  // a row above it says so. A search skips it: it's about the whole board.
+  const none = cut === 0 && !full
   const youAt = rows.findIndex((row) => row.rep.id === viewAsId)
   const pieces = useMemo(() => boardPieces({ count: rows.length, cut, you: youAt, opened, full }), [rows.length, cut, youAt, opened, full])
   const drawn = pieces.reduce((sum, piece) => sum + (piece.kind === 'rows' ? piece.end - piece.start : 0), 0)
 
-  // How tall each rep row was the last time the board drew, at this window
-  // width. A rep that folds away on Record isn't there to measure any more,
-  // and the reps under it on the old board need its real height.
-  const lastHeights = useRef<{ width: number; heights: Map<string, number> } | null>(null)
+  // How tall each rep row (and the nobody-yet row) was the last time the
+  // board drew, at this window width. A row that's gone on Record isn't
+  // there to measure any more, and the rows under it need its real height.
+  const lastHeights = useRef<{ width: number; heights: Map<string, number>; none?: number } | null>(null)
 
   // The row slide, done FLIP style. The board is already drawn in its new
   // order. Work out where each row sat before the recording by drawing the
@@ -203,8 +245,9 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
     const cutHeight = heightOf('.board__cut') ?? 0
     // The space between two neighbouring rows (none in a table, or on phones today).
     const space = kids.length > 1 ? boxes[1].top - boxes[0].bottom : 0
-    const last = lastHeights.current?.width === window.innerWidth ? lastHeights.current.heights : undefined
-    const heightWas = (id: string) => now.get(id)?.height ?? last?.get(id) ?? rowHeight
+    const last = lastHeights.current?.width === window.innerWidth ? lastHeights.current : undefined
+    const heightWas = (id: string) => now.get(id)?.height ?? last?.heights.get(id) ?? rowHeight
+    const noneHeight = heightOf('.board__none') ?? last?.none ?? rowHeight
 
     const ids = new Set(rows.map((row) => row.rep.id))
     const before = slideFrom.order.filter((id) => ids.has(id))
@@ -213,7 +256,13 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
     const from = new Map<string, { top: number; folded: boolean }>()
     const oldGaps: { start: number; end: number; top: number }[] = []
     let cutWas: number | undefined
+    let noneWas: number | undefined
     let y = boxes[0]?.top ?? 0
+    // The old board's nobody-yet row, when nobody was over the line then.
+    if (oldCut === 0 && !full && before.length) {
+      noneWas = y
+      y += noneHeight + space
+    }
     const line = () => {
       cutWas = y
       y += cutHeight + space
@@ -299,8 +348,8 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
         top = start?.top
       } else if (el.classList.contains('board__cut')) {
         top = cutWas
-      } else if (el.classList.contains('board__gap')) {
-        top = gapWas.get(el)
+      } else if (el.classList.contains('board__gap') || el.classList.contains('board__none')) {
+        top = el.classList.contains('board__none') ? noneWas : gapWas.get(el)
         if (top === undefined) {
           fadeIn(el)
           return
@@ -321,10 +370,12 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
       return
     }
     const heights = new Map<string, number>()
+    let noneHeight: number | undefined
     for (const el of body.children as HTMLCollectionOf<HTMLElement>) {
       if (el.dataset.rep) heights.set(el.dataset.rep, el.getBoundingClientRect().height)
+      else if (el.classList.contains('board__none')) noneHeight = el.getBoundingClientRect().height
     }
-    lastHeights.current = { width: window.innerWidth, heights }
+    lastHeights.current = { width: window.innerWidth, heights, none: noneHeight ?? lastHeights.current?.none }
   })
 
   // Show more puts focus on the first rep it brings in, right where the gap
@@ -359,7 +410,7 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
       <div className="board-empty" role="status">
         <p className="board-empty__title">{query ? `Nobody named “${query}”${team ? ` on ${team}` : ''}` : `Nobody on ${team ?? 'the board'} yet`}</p>
         <p className="board-empty__text">
-          {query ? 'Check the spelling, or search the whole board instead.' : 'Reps show up here once the export lists them.'}
+          {query ? 'Check the spelling, or search the whole board instead.' : 'Reps show up here once the passport data lists them.'}
         </p>
         {query && (
           <button type="button" className="btn board-empty__action" onClick={onClear}>
@@ -370,12 +421,25 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
     )
   }
 
+  const noneRow = (
+    <tr key="none" className="board__none" role="row">
+      <td colSpan={COLUMNS} role="cell">
+        <span className="board__none-in">
+          <svg className="board__none-seal" viewBox="0 0 20 20" aria-hidden="true">
+            <circle cx="10" cy="10" r="8.5" />
+          </svg>
+          <span>
+            Nobody{team ? ` on ${team}` : ''} has met all five yet.
+            {ctx && ctx.today <= QUOTA_DATE ? ` ${quotaWhen()}.` : ''}
+          </span>
+        </span>
+      </td>
+    </tr>
+  )
   const cutRow = (
     <tr key="cut" className="board__cut" role="row">
-      <td colSpan={8} role="cell">
-        <span className="board__cut-label">
-          President’s Club line, {Math.round(LINE * 100)}% (placeholder)
-        </span>
+      <td colSpan={COLUMNS} role="cell">
+        <span className="board__cut-label">President’s Club line: all five met</span>
       </td>
     </tr>
   )
@@ -383,6 +447,7 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
   // just above the first rep under it. The short board always draws the
   // reps either side of the line, so it never lands inside a gap.
   const body: ReactNode[] = []
+  if (none) body.push(noneRow)
   for (const piece of pieces) {
     if (piece.kind === 'gap') {
       if (piece.start === cut) body.push(cutRow)
@@ -392,14 +457,24 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
     }
     for (let i = piece.start; i < piece.end; i++) {
       if (i === cut) body.push(cutRow)
-      body.push(<RepRow key={rows[i].rep.id} row={rows[i]} you={rows[i].rep.id === viewAsId} />)
+      body.push(<RepRow key={rows[i].rep.id} row={rows[i]} you={rows[i].rep.id === viewAsId} since={since} />)
     }
   }
   if (cut === rows.length) body.push(cutRow)
 
   return (
     <div className="board-wrap">
-      <h2 className="board__title">The board</h2>
+      <div className="board__head">
+        <h2 className="board__title">The board</h2>
+        <p className="board__key">
+          <span className="board__marks board__marks--key" aria-hidden="true">
+            {ACTIVITIES.map((a) => (
+              <span key={a} className={`board__mark board__mark--${a} is-met`} />
+            ))}
+          </span>
+          <span>Progress marks, in order: {ACTIVITIES.map((a) => KEY_NAMES[a]).join(', ')}.</span>
+        </p>
+      </div>
       {/* Screen readers hear how much of the board this is. The gap rows show it to everyone else. */}
       {drawn < rows.length && (
         <p id="board-shown" className="visually-hidden">
@@ -409,18 +484,20 @@ export function Board({ rows, viewAsId, team, query, full, opened, onOpen, onCle
       <table
         className="board"
         role="table"
-        aria-label={`Standings${team ? ` for ${team}` : ''}, ranked by rate`}
+        aria-label={`Standings${team ? ` for ${team}` : ''}, ranked by minimums met, then stamps`}
         aria-describedby={drawn < rows.length ? 'board-shown' : undefined}
       >
         <thead role="rowgroup">
           <tr role="row">
             <th scope="col" role="columnheader">Rank</th>
-            <th scope="col" role="columnheader">Change</th>
+            <th scope="col" role="columnheader">
+              Change{since && <span className="visually-hidden"> since {since}</span>}
+            </th>
             <th scope="col" role="columnheader">Rep</th>
             <th scope="col" role="columnheader">Team</th>
+            <th scope="col" role="columnheader">Met</th>
+            <th scope="col" role="columnheader">Progress</th>
             <th scope="col" role="columnheader">Stamps</th>
-            <th scope="col" role="columnheader">Rate</th>
-            <th scope="col" role="columnheader">Streak</th>
             <th scope="col" role="columnheader">Status</th>
           </tr>
         </thead>

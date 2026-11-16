@@ -1,15 +1,16 @@
-// The podium: the top three, set apart. Ties keep their shared rank here
-// too, so a two-way tie for second shows two 2s, not a 2 and a 3. A tie
-// too big for the steps left gets one step that counts them and opens
+// The podium: the top three, set apart. Each step shows minimums met and
+// stamps, the two things the board ranks by. Ties keep their shared rank
+// here too, so a two-way tie for second shows two 2s, not a 2 and a 3. A
+// tie too big for the steps left gets one step that counts them and opens
 // them on the board, instead of the alphabet picking who stands up there.
 
 import { Link } from 'react-router'
+import { ACTIVITIES } from '../../config'
 import type { Span } from '../../lib/board'
 import { DATA_PAGE } from '../../lib/book'
-import { ordinal } from '../../lib/format'
+import { ordinal, plural } from '../../lib/format'
 import { podiumSteps, type TieStep } from '../../lib/podium'
 import type { StandingRow } from '../../lib/ranking'
-import { percentOf } from '../../lib/rules'
 import './Podium.css'
 
 interface Props {
@@ -27,6 +28,24 @@ const PLACES = ['first', 'second', 'third'] as const
 // 14 overall get tall, tall and short.
 const HEIGHTS = ['tall', 'mid', 'short'] as const
 
+// "3 of 5 · 15 stamps". The dot goes when the stamps drop to their own
+// line on a narrow step, and a screen reader hears what the 3 of 5 counts.
+function Score({ met, stamps }: { met: number; stamps: number }) {
+  return (
+    <p className="podium__rate">
+      {met} of {ACTIVITIES.length}
+      <span className="visually-hidden"> minimums met,</span>
+      <span className="podium__stamps">
+        <span className="podium__dot" aria-hidden="true">
+          {' '}
+          ·{' '}
+        </span>
+        {plural(stamps, 'stamp')}
+      </span>
+    </p>
+  )
+}
+
 function TieContent({ step, team, onSeeAll }: { step: TieStep; team: string | null; onSeeAll: (span: Span) => void }) {
   const tiedFor = `${step.count} reps tied for ${ordinal(step.rank)}`
   return (
@@ -36,17 +55,9 @@ function TieContent({ step, team, onSeeAll }: { step: TieStep; team: string | nu
       </p>
       <p className="podium__count">{tiedFor}</p>
       {!team && <p className="podium__meta">{step.teams.length === 1 ? step.teams[0] : `From ${step.teams.length} teams`}</p>}
-      {/* The rate and the button share the bottom line when there's room. */}
+      {/* The score and the button share the bottom line when there's room. */}
       <div className="podium__foot">
-        <p className="podium__rate">
-          {percentOf(step.rate)}%
-          {step.stamps && (
-            <span className="podium__stamps">
-              {' '}
-              {step.stamps.attended} of {step.stamps.recorded}
-            </span>
-          )}
-        </p>
+        <Score met={step.met} stamps={step.stamps} />
         {/* Like a rep's name, it covers the whole step. */}
         <button
           type="button"
@@ -97,13 +108,7 @@ export function Podium({ rows, team, onSeeAll }: Props) {
               </Link>
               {/* On a team filter the heading already says which team. */}
               {!team && <p className="podium__meta">{row.rep.team}</p>}
-              <p className="podium__rate">
-                {percentOf(row.stats.rate ?? 0)}%
-                <span className="podium__stamps">
-                  {' '}
-                  {row.stats.attended} of {row.stats.recorded}
-                </span>
-              </p>
+              <Score met={row.stats.met} stamps={row.stats.total} />
             </li>
           )
         })}

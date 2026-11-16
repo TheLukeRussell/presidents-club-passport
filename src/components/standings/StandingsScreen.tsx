@@ -17,7 +17,7 @@ const NONE: Span[] = []
 
 export function StandingsScreen() {
   const app = useApp()
-  const { model, ctx, board, viewAs } = app.ready!
+  const { board, viewAs } = app.ready!
   const [params, setParams] = useSearchParams()
 
   const teamParam = (params.get('team') ?? '').toLowerCase()
@@ -53,7 +53,7 @@ export function StandingsScreen() {
   // The figures follow the team filter. Search only narrows the board.
   const teamRows = useMemo(() => (team ? board.filter((row) => row.rep.team === team) : board), [board, team])
   const rows = useMemo(() => (needle ? teamRows.filter((row) => row.rep.name.toLowerCase().includes(needle)) : teamRows), [teamRows, needle])
-  const figures = useMemo(() => figuresFor(teamRows, model, ctx), [teamRows, model, ctx])
+  const figures = useMemo(() => figuresFor(teamRows), [teamRows])
   const scope = team ? `${team} reps` : 'reps'
 
   // Gaps opened with Show more belong to this team filter. Change it and
@@ -82,7 +82,9 @@ export function StandingsScreen() {
       <header className="standings__head">
         <h1 className="standings__title">Standings</h1>
         <p className="standings__sub">
-          Ranked by rate: trainings attended out of trainings invited to. The dashed line on the board is the President’s Club line.
+          Ranked by how many of the five minimums a rep has met, then by stamps, extras included. Meet all five and you’re above
+          the dashed line: qualified for President’s Club. On track means the four activities are done and only the quota result is
+          left to come.
         </p>
       </header>
 
@@ -124,7 +126,7 @@ export function StandingsScreen() {
       </div>
 
       <section className="scoreboard" aria-label="Scoreboard">
-        {!needle && teamRows.some((row) => row.rank !== null) && <Podium rows={teamRows} team={team} onSeeAll={seeAll} />}
+        {!needle && teamRows.length > 0 && <Podium rows={teamRows} team={team} onSeeAll={seeAll} />}
         <Board
           rows={rows}
           viewAsId={viewAs.id}

@@ -15,7 +15,7 @@
   box-shadow: var(--shadow-card);
 }
 
-/* Wide enough that "No attendance yet" sits on one line on a laptop. */
+/* Wide enough that "No passports yet" sits on one line on a laptop. */
 .state__title {
   font-size: var(--text-section);
   font-weight: var(--display-weight);

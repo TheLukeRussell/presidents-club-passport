@@ -2,6 +2,7 @@
 // that opens the demo panel.
 
 import { Link, NavLink, useLocation } from 'react-router'
+import { PROGRAM_YEAR } from '../../config'
 import { useApp } from '../../state/AppState'
 import './TopBar.css'
 
@@ -23,7 +24,7 @@ export function TopBar({ demoOpen, onToggleDemo }: Props) {
       <div className="topbar__inner container">
         <Link to={passportPath} className="topbar__home">
           <img src={LOGO} alt="ScanSource" width={142} height={28} className="topbar__logo" />
-          <span className="topbar__product">Training Passport 2027</span>
+          <span className="topbar__product">President’s Club {PROGRAM_YEAR}</span>
         </Link>
         <nav className="topbar__tabs" aria-label="Screens">
           {/* Passport links to whoever you’re viewing as, so it counts as

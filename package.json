@@ -1,8 +1,8 @@
 {
-  "name": "supplier-training-passport",
+  "name": "presidents-club-passport",
   "private": true,
   "version": "0.1.0",
-  "description": "Clickable demo of the 2027 Supplier Training Passport, built on sample data.",
+  "description": "Clickable demo of the 2027 President's Club Passport, built on sample data.",
   "author": "Luke Russell (https://github.com/TheLukeRussell)",
   "type": "module",
   "engines": {

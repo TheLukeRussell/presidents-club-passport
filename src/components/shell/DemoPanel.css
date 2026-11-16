@@ -1,5 +1,5 @@
 /* Hallmark · this folder follows the build stamp in src/styles/app.css */
-/* Hallmark · dismissed 49 · the Record button carries the .btn class, which sets white-space: nowrap in src/styles/app.css */
+/* Hallmark · dismissed 49 · the Record buttons carry the .btn class, which sets white-space: nowrap in src/styles/app.css; they wrap on purpose, the activity over what it stamps */
 /* Demo panel. A dashed strip under the top bar so nobody mistakes it for
    part of the product. It pushes the page down instead of covering it. */
 
@@ -8,13 +8,15 @@
   background: var(--color-paper-2);
 }
 
+/* Wide screens: who you are, then the five Record buttons beside it; reset
+   and the data states on the row under them. Same order as the tab order. */
 .demo__inner {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  grid-template-columns: minmax(13rem, 16rem) minmax(0, 1fr);
   grid-template-areas:
-    "head head head head"
-    "viewas record record reset"
-    "states states states states";
+    "head head"
+    "viewas record"
+    "reset states";
   gap: var(--space-md) var(--space-lg);
   padding-block: var(--space-md) var(--space-lg);
   align-items: start;
@@ -31,21 +33,40 @@
 
 .demo__viewas { grid-area: viewas; }
 
-.demo__record {
-  grid-area: record;
+.demo__record { grid-area: record; display: grid; gap: var(--space-2xs); min-width: 0; }
+.demo__label { font-size: var(--text-sm); font-weight: 700; color: var(--color-ink-2); }
+
+/* Five buttons, as many to a row as fit. Each has the activity on top and
+   what it stamps under it, or why it can't run again. */
+.demo__record-buttons {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-xs) var(--space-md);
-  padding-top: var(--space-lg);
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-xs);
 }
+.demo__rec {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--space-3xs);
+  min-height: 52px;
+  padding: var(--space-xs) var(--space-sm);
+  text-align: left;
+  white-space: normal;
+  line-height: 1.2;
+}
+.demo__rec-name { font-size: var(--text-sm); }
+.demo__rec-sub { font-size: var(--text-xs); font-weight: 400; color: var(--color-field-muted); }
+/* Quota plays the gold seal, so its button is foil with the covers' navy ink. */
+.demo__rec--quota { border-color: var(--color-foil-deep); background: var(--color-foil); color: var(--color-foil-ink); }
+.demo__rec--quota .demo__rec-sub { color: var(--color-foil-ink); }
+@media (hover: hover) { .demo__rec--quota:hover { background: var(--color-foil-soft); } }
 
 .demo__reset {
   grid-area: reset;
-  display: grid;
-  justify-items: start;
-  gap: var(--space-2xs);
-  padding-top: var(--space-lg);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2xs) var(--space-md);
 }
 
 .demo__help {
@@ -92,12 +113,16 @@
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: "head" "viewas" "record" "reset" "states";
   }
-  .demo__record, .demo__reset { padding-top: 0; }
-  .demo__record { grid-template-columns: minmax(0, 1fr); justify-items: start; }
+  .demo__viewas { max-width: 24rem; }
   .demo__states legend { float: none; padding-top: 0; }
 }
 
-@media (max-width: 40rem) { .demo__state { padding: 0 var(--space-xs); } }
+/* Phones: two to a row, and Quota, the odd one out, takes a row to itself. */
+@media (max-width: 40rem) {
+  .demo__record-buttons { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .demo__rec--quota { grid-column: 1 / -1; }
+  .demo__state { padding: 0 var(--space-xs); }
+}
 
 /* High contrast drops the black fill, so the pressed state takes the
    system highlight instead. */

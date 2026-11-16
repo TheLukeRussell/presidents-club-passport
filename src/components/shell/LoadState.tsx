@@ -24,10 +24,10 @@ export function LoadState({ screen }: Props) {
       <div className="container">
         <section className="state" role="alert" aria-labelledby="state-title">
           <h1 id="state-title" className="state__title">
-            Couldn’t load attendance
+            Couldn’t load the passport data
           </h1>
           <p className="state__text">{error}</p>
-          <p className="state__text">Passports and standings need that file. Nothing you changed in the demo is lost.</p>
+          <p className="state__text">Passports and standings both read from that data. Nothing you changed in the demo is lost.</p>
           <button type="button" className="btn" onClick={retry}>
             Try again
           </button>
@@ -41,10 +41,10 @@ export function LoadState({ screen }: Props) {
       <div className="container">
         <section className="state" aria-labelledby="state-title">
           <h1 id="state-title" className="state__title">
-            No attendance yet
+            No passports yet
           </h1>
           <p className="state__text">
-            The attendance file loaded, but it has no trainings in it. Once the export has rows, every passport fills in and the board ranks everyone.
+            The passport data loaded, but it doesn’t list any reps yet. Once the sheet has them, every rep gets a passport and the board ranks everyone.
           </p>
           <button type="button" className="btn" onClick={retry}>
             Load it again
@@ -58,7 +58,7 @@ export function LoadState({ screen }: Props) {
   return (
     <div className="container" aria-busy="true">
       <p className="visually-hidden" role="status">
-        Loading attendance data
+        Loading passport data
       </p>
       {screen === 'passport' ? (
         <div className={`skeleton skeleton--book${closed ? ' skeleton--closed' : ''}`} aria-hidden="true">

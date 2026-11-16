@@ -81,14 +81,14 @@
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
-.podium__stamps { font-family: var(--font-body); font-weight: 400; font-size: var(--text-sm); letter-spacing: 0; color: var(--color-board-muted); }
+.podium__stamps { font-family: var(--font-body); font-weight: 400; font-size: var(--text-sm); letter-spacing: 0; color: var(--color-board-muted); white-space: nowrap; }
 /* On Ember everything is Ink: Stone drops under 4.5:1 there. */
 .podium__step--tall .podium__meta, .podium__step--tall .podium__stamps { color: var(--color-board-signal-ink); }
 
 /* A tie too big for the steps left: one step that counts them, and the
-   board's Show more button, which opens them there. The rate and the
+   board's Show more button, which opens them there. The score and the
    button share the bottom line, so a count step is no taller than a rep
-   step; on a slot too narrow for both, the button drops under the rate.
+   step; on a slot too narrow for both, the button drops under the score.
    On the wide step they stay together on the left, not a podium apart. */
 .podium__foot {
   display: flex;
@@ -131,8 +131,9 @@
   .podium__rank { font-size: min(var(--text-display-s), 13vw); }
   .podium__name, .podium__count { font-size: var(--text-md); }
   .podium__rate { font-size: var(--text-xl); }
-  /* "10 of 11" gets its own line instead of wrapping on a narrow step. */
+  /* The stamps get their own line instead of wrapping on a narrow step. */
   .podium__stamps { display: block; margin-top: var(--space-3xs); }
+  .podium__dot { display: none; }
   .podium__all { padding-inline: var(--space-xs); }
   .podium__step--all .podium__count { font-size: var(--text-xl); }
 }
