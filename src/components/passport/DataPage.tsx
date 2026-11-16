@@ -24,6 +24,33 @@ interface Props {
 // "June 30", when quota results come in.
 const QUOTA_DAY = longDate(QUOTA_DATE).replace(/, \d{4}$/, '').replace(' ', '\u00a0')
 
+// The widest ranks this board can show: one for each ordinal ending (st, nd,
+// rd, th) at the most digits. Kept hidden under the real rank, so a new
+// ordinal or a tie never rewraps the cell and grows the book.
+function widestRanks(repCount: number): number[] {
+  const floor = 10 ** (String(repCount).length - 1)
+  const byEnding = new Map<string, number>()
+  for (let n = repCount; n >= floor && byEnding.size < 4; n--) {
+    const ending = ordinal(n).slice(-2)
+    if (!byEnding.has(ending)) byEnding.set(ending, n)
+  }
+  return [...byEnding.values()]
+}
+
+// "53rd of 60, tied", with the number in display type.
+function RankText({ rank, of, tied }: { rank: number; of: number; tied: boolean }) {
+  return (
+    <span className="data__figure">
+      {ordinal(rank)}
+      <span className="data__of">
+        {' '}
+        of {of}
+        {tied ? ', tied' : ''}
+      </span>
+    </span>
+  )
+}
+
 export function DataPage({ rep, row, repCount, ctx }: Props) {
   const { stats, rank, status } = row
   const message = lineMessage(stats, ctx)
@@ -117,15 +144,15 @@ export function DataPage({ rep, row, repCount, ctx }: Props) {
           </div>
           <div className="data__stat">
             <dt>Rank</dt>
-            <dd>
-              <span className="data__figure">
-                {ordinal(rank)}
-                <span className="data__of">
-                  {' '}
-                  of {repCount}
-                  {row.tied ? ', tied' : ''}
-                </span>
+            <dd className="data__rank">
+              <span>
+                <RankText rank={rank} of={repCount} tied={row.tied} />
               </span>
+              {widestRanks(repCount).map((n) => (
+                <span key={n} className="data__rank-reserve" aria-hidden="true">
+                  <RankText rank={n} of={repCount} tied />
+                </span>
+              ))}
             </dd>
           </div>
           {/* Quota: when the results come in, then the gold seal once it's hit. */}

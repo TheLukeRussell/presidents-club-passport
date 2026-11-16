@@ -44,9 +44,11 @@ function sharedBy(model: Model, stamp: Stamp): number {
   return new Set(model.stamps.filter(match).map((s) => s.email)).size
 }
 
+// A training with no format reads Virtual everywhere, since only an
+// in-person one counts toward the minimum.
 function formatAndPlace(stamp: Stamp): string {
   if (stamp.activity === 'hub') return 'Online, on the Hub'
-  if (stamp.format === 'virtual') return 'Virtual'
+  if (stamp.activity === 'training' && stamp.format !== 'in person') return 'Virtual'
   return stamp.location ? `In person, ${stamp.location}` : 'In person'
 }
 
@@ -56,7 +58,7 @@ function formatAndPlace(stamp: Stamp): string {
 function statusOf(model: Model, rep: Rep, stamp: Stamp): string {
   const { activity } = stamp
   if (activity === 'quota') return 'Quota hit, so the last minimum is met.'
-  if (activity === 'training' && stamp.format === 'virtual') {
+  if (activity === 'training' && stamp.format !== 'in person') {
     return 'A virtual training earns a stamp, but the minimum counts in-person sessions only.'
   }
   const min = MINIMUMS[activity]

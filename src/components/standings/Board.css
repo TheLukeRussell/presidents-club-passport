@@ -1,9 +1,9 @@
 /* Hallmark · this folder follows the build stamp in src/styles/app.css */
-/* The board. A real table on wide screens; on phones each row restacks into
-   a three-line block so nothing scrolls sideways. White sheet, Cloud
-   hairlines, a Fog band below the line, and the line itself is a row of its
-   own. So is each gap on a short board, and the nobody-yet row over the line
-   before anyone qualifies. */
+/* The board. A real table from 58rem up; under that each row restacks into
+   a block (two lines on tablets, three on phones) so nothing scrolls
+   sideways. White sheet, Cloud hairlines, a Fog band below the line, and
+   the line itself is a row of its own. So is each gap on a short board, and
+   the nobody-yet row over the line before anyone qualifies. */
 
 .board-wrap { display: grid; gap: var(--space-sm); }
 
@@ -105,7 +105,8 @@
 }
 
 /* Five marks, one per minimum: an outline until it's met, then filled Ink.
-   Quota's fills gold, like the seal on the passport. */
+   Quota's fills gold, like the seal on the passport, with an Ink edge: the
+   gold alone is only 2:1 on the white sheet. */
 .board__marks { display: inline-flex; gap: var(--space-2xs); vertical-align: middle; }
 .board__mark {
   width: 12px;
@@ -115,7 +116,7 @@
   flex-shrink: 0;
 }
 .board__mark.is-met { border-color: var(--color-ink); background: var(--color-ink); }
-.board__mark--quota.is-met { border-color: var(--color-foil-deep); background: var(--color-foil); }
+.board__mark--quota.is-met { background: var(--color-foil); }
 
 /* Rep, met and status carry the row. Team and stamps step back to Stone. */
 .board__team, .board__stamps { color: var(--color-board-muted); }

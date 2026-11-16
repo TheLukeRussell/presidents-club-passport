@@ -27,7 +27,7 @@
 }
 
 /* The running foot: page number on the outer edge, section name at the
-   inner edge, like a printed book, so "3" and "Visas" never read as one
+   inner edge, like a printed book, so "3" and "Stamps" never read as one
    phrase. Left-hand pages mirror it. */
 .page__folio {
   display: flex;

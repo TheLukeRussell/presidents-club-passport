@@ -7,6 +7,7 @@ import { useLocation, useNavigate } from 'react-router'
 import { ACTIVITIES, DEMO_EVENTS, TEAMS, type Activity } from '../../config'
 import { demoStamp, GROUP_EVENTS } from '../../lib/demo'
 import { firstName } from '../../lib/format'
+import type { Rep } from '../../lib/model'
 import { TURN_MS, pageForActivity, parsePage, viewForPage } from '../../lib/book'
 import { useApp, type Preview, type RecordBlock } from '../../state/AppState'
 import { useReducedMotion, useSpread } from '../../state/useMedia'
@@ -33,6 +34,16 @@ const RECORDED: Record<Activity, string> = {
   hub: 'a Hub course',
   club: DEMO_EVENTS.club.event,
   quota: 'the quota',
+}
+
+// Reps by team for View as, plus an Other group for anyone whose team in the
+// sheet isn't one of the five. Without it they couldn't be picked, and the
+// box showed someone else's name while they were the one viewing.
+function teamGroups(reps: Rep[]): [string, Rep[]][] {
+  const known: readonly string[] = TEAMS
+  const groups: [string, Rep[]][] = TEAMS.map((team) => [team, reps.filter((rep) => rep.team === team)])
+  const other = reps.filter((rep) => !known.includes(rep.team))
+  return other.length ? [...groups, ['Other', other]] : groups
 }
 
 const PREVIEWS: { value: Preview; label: string }[] = [
@@ -182,15 +193,13 @@ export function DemoPanel({ open, onClose }: Props) {
           <div className="field demo__viewas">
             <label htmlFor="view-as">View as</label>
             <select id="view-as" className="input" value={ready.viewAs.id} onChange={(e) => onViewAs(e.target.value)}>
-              {TEAMS.map((team) => (
+              {teamGroups(ready.model.reps).map(([team, reps]) => (
                 <optgroup key={team} label={team}>
-                  {ready.model.reps
-                    .filter((rep) => rep.team === team)
-                    .map((rep) => (
-                      <option key={rep.id} value={rep.id}>
-                        {rep.name}
-                      </option>
-                    ))}
+                  {reps.map((rep) => (
+                    <option key={rep.id} value={rep.id}>
+                      {rep.name}
+                    </option>
+                  ))}
                 </optgroup>
               ))}
             </select>

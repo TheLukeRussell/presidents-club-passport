@@ -100,19 +100,25 @@
 }
 .data__figure--word { font-size: var(--text-xl); }
 .data__of { font-size: var(--text-lg); color: var(--color-ink-2); }
+/* The rank sits over hidden copies of the widest ranks the board can show,
+   all in one cell, so it wraps the same way whatever the rank is. */
+.data__rank { display: grid; }
+.data__rank > * { grid-area: 1 / 1; min-width: 0; }
+.data__rank-reserve { visibility: hidden; }
 
 /* Quota: when results land, then once it's hit the gold seal beside
-   Achieved and the day it came in. Two lines either way, so the cell never
-   changes height. */
-.data__quota { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-xs); align-items: center; }
+   Achieved and the day it came in. Two lines either way, and never shorter
+   than the seal (the two lines come to a hair under 44px), so the cell
+   never changes height. */
+.data__quota { --quota-seal: 44px; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-xs); align-items: center; min-height: var(--quota-seal); }
 .data__quota-head, .data__quota-sub { grid-column: 1 / -1; }
 .data__quota.is-met .data__quota-head, .data__quota.is-met .data__quota-sub { grid-column: 2; }
-.data__quota .gold-seal { --seal-size: 44px; grid-row: 1 / span 2; }
+.data__quota .gold-seal { --seal-size: var(--quota-seal); grid-row: 1 / span 2; }
 .data__quota-head { font-family: var(--font-display); font-weight: var(--display-weight); font-size: var(--text-xl); line-height: 1.05; }
 .data__quota-sub { line-height: 1.3; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* Where you stand. Each box is solid, so the laminate never runs under its
-   words. Working on it, it sits on the scoreboard's Charcoal. */
+   words. Working on it, it sits on Charcoal (--color-field). */
 .data__line {
   display: grid;
   gap: var(--space-3xs);

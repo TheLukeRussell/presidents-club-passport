@@ -18,8 +18,11 @@
   font-size: var(--text-sm);
   color: var(--color-ink-2);
 }
+/* The dots are drawn, not words, so the second content gives them empty alt
+   text and screen readers skip them. The first is for browsers without it. */
 .activity__count > span::before {
   content: "·";
+  content: "·" / "";
   display: inline-block;
   width: var(--sep);
   text-align: center;
@@ -90,7 +93,7 @@
 .activity__endorse > * { grid-area: 1 / 1; }
 .activity__endorse > .visa__endorse { margin-top: 0; align-self: end; }
 
-/* The room kept on an exactly full page for the summary the next stamp brings. */
+/* The room kept for the summary until a page's list starts. */
 .activity__summary--reserve { visibility: hidden; }
 
 /* Today's stamp went into the list: the summary flashes a tint of its ink,

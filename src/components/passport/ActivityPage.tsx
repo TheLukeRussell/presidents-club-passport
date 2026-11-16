@@ -92,6 +92,10 @@ export function ActivityPage({ page, activity, rep, stats, ctx, landing, onLande
   // The moment only plays on the real page, never on the hidden sizer copy
   // or a page mid-turn.
   const playing = landing && !still && today !== null
+  // A full page has no slot for today's stamp, so it lands in the list. The
+  // list stays shut and its summary flashes in the stamp's ink instead:
+  // opening it on its own would make the book grow, and recording never
+  // should. The endorsement under it says what landed.
   const inList = playing && p.stamps.length > slots
   // The count, as it was before today's stamp while that one is waiting.
   const shown = waiting ? before(p, today) : p
@@ -120,11 +124,6 @@ export function ActivityPage({ page, activity, rep, stats, ctx, landing, onLande
     }
   }, [playing, reduced, onLanded])
 
-  // A full page has no slot for today's stamp, so it lands in the list. The
-  // list stays shut and its summary flashes in the stamp's ink instead:
-  // opening it on its own would make the book grow, and recording never
-  // should. The endorsement under it says what landed.
-
   const more = activity === 'hub' ? 'Also finished' : 'Also attended'
 
   return (
@@ -134,6 +133,7 @@ export function ActivityPage({ page, activity, rep, stats, ctx, landing, onLande
         {/* Trainings count in-person sessions toward the minimum, so a page
             full of virtual stamps still reads short of it. */}
         <div className="activity__count-room">
+          {/* At least 10, so the reserve always holds a two-digit stamp count. */}
           <Count p={{ ...shown, counted: shown.minimum, met: true }} stamps={Math.max(stamps.length + 1, 10)} reserve />
           <Count p={shown} stamps={stamps.length} />
         </div>
@@ -164,9 +164,10 @@ export function ActivityPage({ page, activity, rep, stats, ctx, landing, onLande
           </ul>
         </details>
       )}
-      {/* A page that's exactly full keeps room for the summary, since the
-          next stamp starts the list and the book shouldn't grow when it does. */}
-      {extras.length === 0 && stamps.length === slots && (
+      {/* Room for the list's summary until the list starts, so the stamp
+          that starts it never grows the book. Every page keeps it, not just
+          a full one, or filling the last slot would grow it instead. */}
+      {extras.length === 0 && (
         <p className="activity__summary activity__summary--reserve" aria-hidden="true">
           {more} <span className="activity__more-count">1</span>
         </p>

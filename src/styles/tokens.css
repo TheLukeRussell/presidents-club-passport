@@ -71,7 +71,7 @@
   --color-accent: var(--ss-ember); --color-accent-ink: var(--ss-ink);
   --color-focus: var(--ss-ink); --color-focus-on-field: var(--ss-ember);
 
-  /* Missed and below the line: Rogue. */
+  /* Out of reach: Rogue. */
   --color-miss: var(--ss-rogue);
 
   /* Standings is a white sheet, like a page of the brand site: Ink type,
@@ -86,9 +86,10 @@
   --color-board-down: #B5141F /* derived, Rogue darkened: full Rogue is 4.47:1 on Fog, this is 5.4:1 on the hover grey */;
   --color-error: var(--ss-rogue); --color-success: #1E7F82 /* derived from Jewel */;
 
-  /* Stamp inks, one per supplier, see src/lib/stamps.ts. Ember, Marine and
+  /* Stamp inks, see src/lib/stamps.ts: a training takes its supplier's,
+     and fairs, Hub courses and Club Express have one each. Ember, Marine and
      Jewel are too light for stamp lettering on paper, and Rogue is kept for
-     missed trainings, so a stamp never reads as a miss. The teal is Jewel
+     out of reach, so a stamp never reads as a warning. The teal is Jewel
      darkened to read at 6:1, the navy is Marine darkened to 10:1, and
      Charcoal is brand. */
   --color-stamp-1: #17696B; --color-stamp-2: #1F3A68; --color-stamp-3: var(--ss-charcoal);

@@ -47,11 +47,13 @@ export function NotesPage() {
         </dl>
         <ul className="notes__rules">
           <li>Every supplier training earns a stamp. Only in-person ones count toward the {MINIMUMS.training}.</li>
-          <li>Extras go in each page’s Also attended list.</li>
+          <li>Extras go in a list under the stamps.</li>
           <li>Quota is the gold seal. Results land {QUOTA_DAY}.</li>
           <li>All five earns the seal on your cover.</li>
         </ul>
 
+        {/* The swatches are pictures, so they're hidden from screen readers
+            and each one's name goes in front of its words instead. */}
         <div className="notes__key">
           <p className="notes__key-title">On the pages</p>
           <ul className="notes__key-list">
@@ -59,19 +61,25 @@ export function NotesPage() {
               <span className="notes__swatch notes__swatch--stamp" aria-hidden="true">
                 Stamped
               </span>
-              <span>You were there</span>
+              <span>
+                <span className="visually-hidden">Stamped: </span>You were there
+              </span>
             </li>
             <li>
               <span className="notes__swatch notes__swatch--needed" aria-hidden="true">
                 Still needed
               </span>
-              <span>Not yet</span>
+              <span>
+                <span className="visually-hidden">Still needed: </span>Not yet
+              </span>
             </li>
             <li>
               <span className="notes__swatch notes__swatch--seal" aria-hidden="true">
                 <GoldSeal size="small" />
               </span>
-              <span>Quota hit</span>
+              <span>
+                <span className="visually-hidden">Gold seal: </span>Quota hit
+              </span>
             </li>
           </ul>
         </div>

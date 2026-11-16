@@ -253,7 +253,7 @@ export function Stamp({ stamp, repEmail, landing = false }: Props) {
     const box = el.getBoundingClientRect()
     const bar = document.querySelector('.passport__controls')
     const floor = Math.min(window.innerHeight, bar && getComputedStyle(bar).position === 'sticky' ? bar.getBoundingClientRect().top - BAR_GAP : Infinity)
-    const note = el.closest('.page')?.querySelector('.visa__endorse:not(.visa__endorse--reserve)')
+    const note = el.closest('.page')?.querySelector('.visa__endorse')
     const top = box.top - STAMPER_ROOM
     const bottom = Math.max(box.bottom, note?.getBoundingClientRect().bottom ?? -Infinity)
     if (top >= 0 && bottom <= floor) return

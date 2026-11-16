@@ -20,11 +20,12 @@ interface Props {
 }
 
 // The small line under a stamp: how a training was held, where a fair or
-// Club Express was, and that a Hub course is done online.
+// Club Express was, and that a Hub course is done online. A training with
+// no format reads Virtual, since that's how the minimum counts it.
 function stampCaption(stamp: StampData): string {
   switch (stamp.activity) {
     case 'training':
-      return stamp.format === 'virtual' ? 'Virtual' : 'In person'
+      return stamp.format === 'in person' ? 'In person' : 'Virtual'
     case 'hub':
       return 'Online course'
     default:

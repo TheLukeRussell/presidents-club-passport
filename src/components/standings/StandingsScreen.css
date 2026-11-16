@@ -1,4 +1,4 @@
-/* Standings layout: heading and a one-line explainer, the figures, the
+/* Standings layout: heading and a short explainer, the figures, the
    filters, then the scoreboard, a white sheet like a page of the brand site. */
 
 .standings { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-lg); }

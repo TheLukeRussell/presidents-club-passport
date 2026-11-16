@@ -87,8 +87,11 @@ button.slot:active { transform: translateY(1px); }
 }
 
 /* High contrast: the dashed outline in the system's text colour, and the
-   new row marked with an outline instead of a tint. */
+   new row marked with an outline instead of a tint. High contrast draws the
+   see-through border too, so a stamped slot gets a solid one and only a
+   slot still needed is dashed. */
 @media (forced-colors: active) {
   .slot--empty { border-color: CanvasText; }
+  .slot--stamped { border-style: solid; }
   .extra.is-new { outline: 2px solid Highlight; outline-offset: -2px; }
 }
