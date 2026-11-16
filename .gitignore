@@ -10,9 +10,10 @@ dist
 # Local tooling, keep it out of the repo
 .hallmark/
 
-# The real attendance export has real names and emails, and this repo is
-# public. Spreadsheets and env files never get committed, so dropping the
-# export in here by mistake can't leak it. The sample data is JSON.
+# The real tracking sheet (and the Reps and Stamps CSVs saved from it for
+# npm run import) has real names and emails, and this repo is public.
+# Spreadsheets and env files never get committed, so dropping one in here by
+# mistake can't leak it. The sample data is JSON.
 *.csv
 *.xls
 *.xlsx

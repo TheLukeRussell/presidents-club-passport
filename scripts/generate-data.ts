@@ -205,7 +205,8 @@ for (const rep of REPS) {
     stamps.push({ rep_email: email, activity: 'fair', event: f.event, supplier: '', date: f.date, format: 'in person', location: f.location })
   }
   // Hub courses are self-paced, so each one lands on its own day. The last
-  // course in the list is left for the demo's Record to pick.
+  // course is never handed out here, so every rep has at least one left for
+  // Record (which gives the first one they haven't done).
   for (const c of pick([...HUB_COURSES].slice(0, -1), rep.hub, 'Hub courses')) {
     const date = dayBetween(start || ISSUE_DATE, '2027-06-15')
     stamps.push({ rep_email: email, activity: 'hub', event: c.event, supplier: c.supplier, date, format: '', location: '' })

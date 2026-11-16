@@ -11,12 +11,13 @@ export interface Context {
 export interface Progress {
   activity: Activity
   stamps: Stamp[] // this activity's stamps, in date order
-  counted: number // what counts toward the minimum: in-person sessions for trainings
+  counted: number // what counts toward the minimum (see countingStamps)
   minimum: number
   met: boolean
   short: number // how many more it takes, 0 once met
   // False once the minimum can't be met this year: a Club Express event
-  // that's been and gone without them, or quota after the year closes.
+  // that's been and gone without them, or anything still short once the
+  // year closes.
   reachable: boolean
 }
 
@@ -34,22 +35,50 @@ export function countedStamps(model: Model, rep: Rep, ctx: Context): Stamp[] {
   return stampsOf(model, rep).filter((stamp) => stamp.date <= ctx.today)
 }
 
-// The Club Express events that have been and gone without this rep. A stamp
-// matches an event by its name or its date, so "Club Express Fall" typed
-// without the comma still counts. Someone who started after an event missed
-// it too: the rule is both.
+// Pairs each Club Express event a rep made with the stamp that shows it. A
+// stamp matches an event by its name or its date, so "Club Express, Fall" or
+// "club express fall" still counts. Each stamp stands for one event at most,
+// so the same event typed in twice can't cover the one they missed.
 const squash = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, '')
+function clubMatches(stamps: Stamp[]): Map<string, Stamp> {
+  const made = new Map<string, Stamp>() // by event title
+  for (const s of stamps) {
+    if (s.activity !== 'club') continue
+    const event = CLUB_EXPRESS.find((e) => !made.has(e.title) && (s.date === e.date || squash(s.event) === squash(e.title)))
+    if (event) made.set(event.title, s)
+  }
+  return made
+}
+
+// The Club Express events this rep made, in calendar order.
+export function clubEventsMade(stamps: Stamp[]): string[] {
+  const made = clubMatches(stamps)
+  return CLUB_EXPRESS.filter((event) => made.has(event.title)).map((event) => event.title)
+}
+
+// The Club Express events that have been and gone without this rep. Someone
+// who started after an event missed it too: the rule is both.
 export function clubEventsMissed(stamps: Stamp[], ctx: Context): string[] {
-  return CLUB_EXPRESS.filter(
-    (event) =>
-      event.date < ctx.today &&
-      !stamps.some((s) => s.activity === 'club' && (s.date === event.date || squash(s.event) === squash(event.title))),
-  ).map((event) => event.title)
+  const made = clubMatches(stamps)
+  return CLUB_EXPRESS.filter((event) => event.date < ctx.today && !made.has(event.title)).map((event) => event.title)
+}
+
+// The stamps that count toward an activity's minimum, in date order:
+// in-person sessions for trainings, one stamp per event for Club Express, and
+// every stamp for the rest.
+export function countingStamps(activity: Activity, stamps: Stamp[]): Stamp[] {
+  const mine = stamps.filter((s) => s.activity === activity)
+  if (activity === 'training') return mine.filter((s) => s.format === 'in person')
+  if (activity === 'club') {
+    const made = new Set(clubMatches(mine).values())
+    return mine.filter((s) => made.has(s))
+  }
+  return mine
 }
 
 function progressOf(activity: Activity, all: Stamp[], ctx: Context): Progress {
   const stamps = all.filter((s) => s.activity === activity)
-  const counted = activity === 'training' ? stamps.filter((s) => s.format === 'in person').length : stamps.length
+  const counted = countingStamps(activity, stamps).length
   const minimum = MINIMUMS[activity]
   const met = counted >= minimum
   let reachable = true

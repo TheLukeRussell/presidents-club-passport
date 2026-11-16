@@ -73,8 +73,8 @@ export function mrzLines(input: MrzInput): [string, string] {
   const expiry = yymmdd(input.expiry)
   // The "personal number" slot holds the stats: M minimums met, S stamps,
   // Q quota (1 once the gold seal is in), K rank. The rank gets three
-  // digits, so 293rd of 600 fits, and the slot comes out at exactly its 14
-  // characters.
+  // digits, so 293rd of 600 fits. That's 11 characters, and < fills the
+  // rest of the slot's 14.
   const stats = pad(
     `M${digits(input.met, 1)}S${digits(input.stamps, 2)}Q${input.quota ? 1 : 0}K${digits(input.rank, 3)}`,
     14,

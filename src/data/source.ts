@@ -12,9 +12,9 @@ const DATA_PATH = 'data/passport.json'
 // be checked locally without ever going near the public site.
 const LOCAL_PATH = 'data/local.json'
 
-const useLocal = () => import.meta.env.DEV && new URLSearchParams(window.location.search).get('data') === 'local'
+const readsLocal = () => import.meta.env.DEV && new URLSearchParams(window.location.search).get('data') === 'local'
 
-export const dataPath = () => (useLocal() ? LOCAL_PATH : DATA_PATH)
+export const dataPath = () => (readsLocal() ? LOCAL_PATH : DATA_PATH)
 
 export class DataError extends Error {}
 
@@ -24,7 +24,8 @@ export async function loadData(signal?: AbortSignal): Promise<PassportData> {
   const path = dataPath()
   let response: Response
   try {
-    // BASE_URL is "/" in dev and the repo's path on Pages, so this works in both.
+    // BASE_URL carries Vite's base path (/presidents-club-passport/) in dev
+    // and on Pages, so this works in both.
     response = await fetch(`${import.meta.env.BASE_URL}${path}`, { signal, cache: 'no-cache' })
   } catch (error) {
     if (signal?.aborted) throw error

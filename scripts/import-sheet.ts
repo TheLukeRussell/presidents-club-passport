@@ -8,10 +8,10 @@
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ACTIVITIES, ACTIVITY_NAMES, EXPIRY_DATE, FISCAL_YEAR, ISSUE_DATE, TEAMS } from '../src/config.ts'
+import { ACTIVITIES, ACTIVITY_NAMES, DEMO_TODAY, EXPIRY_DATE, FISCAL_YEAR, ISSUE_DATE, TEAMS } from '../src/config.ts'
 import type { RepRow, StampRow } from '../src/data/types.ts'
 import { guessSeparator, parseCsv } from '../src/lib/csv.ts'
-import { cleanData, tableToRecords, toRepRow, toStampRow } from '../src/lib/sheet.ts'
+import { cleanData, columnClashes, tableToRecords, toRepRow, toStampRow } from '../src/lib/sheet.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const OUT = join(ROOT, 'public', 'data', 'local.json')
@@ -87,9 +87,11 @@ function readTab(path: string): Tab {
   // _row, so problems name the row it's really on.
   const records = tableToRecords(grid)
   // It also knows the header spellings, so ask it for the column names with
-  // a throwaway row.
+  // a throwaway row. Two columns that read as one ("Email" and "E-mail")
+  // keep the first, and the note says so.
   const header = grid[0] ?? []
   const columns = Object.keys(tableToRecords([header, header.map(() => '-')])[0] ?? {}).filter((key) => key !== '_row')
+  for (const clash of columnClashes(header)) notes.push(`${basename(path)}: ${clash}.`)
   return { file: basename(path), columns, records, sheetRow: records.map((r) => r._row as number) }
 }
 
@@ -127,11 +129,21 @@ reps.records.forEach((raw, i) => {
   const why = row.team ? `team “${row.team}” isn’t one of ${TEAMS.join(', ')}` : 'no team'
   found.push(`Reps row ${reps.sheetRow[i]}: ${why}, so they won’t show under a team`)
 })
+// Stamps dated after the demo's fixed today (a quota result entered on June
+// 30, say) are fine in the sheet, but the demo won't count or show them, so
+// they get one note rather than a line each.
+const later: number[] = []
 stamps.records.forEach((raw, i) => {
   const row = toStampRow(raw)
-  if (typeof row === 'string' || (row.date >= ISSUE_DATE && row.date <= EXPIRY_DATE)) return
-  found.push(`Stamps row ${stamps.sheetRow[i]}: dated ${row.date}, outside ${FISCAL_YEAR} (${ISSUE_DATE} to ${EXPIRY_DATE})`)
+  if (typeof row === 'string') return
+  if (row.date < ISSUE_DATE || row.date > EXPIRY_DATE) {
+    found.push(`Stamps row ${stamps.sheetRow[i]}: dated ${row.date}, outside ${FISCAL_YEAR} (${ISSUE_DATE} to ${EXPIRY_DATE})`)
+  } else if (row.date > DEMO_TODAY) later.push(stamps.sheetRow[i])
 })
+if (later.length) {
+  const what = later.length === 1 ? 'stamp is' : 'stamps are'
+  notes.push(`${later.length} ${what} dated after the demo’s today (${DEMO_TODAY}), so the demo won’t count or show ${later.length === 1 ? 'it' : 'them'}. Stamps ${later.length === 1 ? 'row' : 'rows'} ${later.join(', ')}.`)
+}
 
 // Reps first, then Stamps, each in row order.
 const place = (message: string) => {

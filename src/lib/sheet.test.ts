@@ -3,7 +3,8 @@
 // for rows it can't use.
 
 import { describe, expect, it } from 'vitest'
-import { cleanData, parseActivity, parseDate, parseFormat, tableToRecords, toRepRow, toStampRow } from './sheet'
+import { stampFrom } from './model'
+import { cleanData, columnClashes, parseActivity, parseDate, parseFormat, stampKey, tableToRecords, toRepRow, toStampRow } from './sheet'
 
 describe('tableToRecords', () => {
   it('maps the header spellings people use onto the columns', () => {
@@ -38,6 +39,18 @@ describe('tableToRecords', () => {
     expect(keys(['  rep_email  ', 'KIND', 'Title'])).toEqual(['rep_email', 'activity', 'event'])
   })
 
+  it('reads a bare “Rep” column as names, not emails', () => {
+    expect(tableToRecords([['Email', 'Rep', 'Team'], ['ann.lee@example.com', 'Ann Lee', 'POSB']])).toEqual([
+      { rep_email: 'ann.lee@example.com', rep_name: 'Ann Lee', team: 'POSB', _row: 2 },
+    ])
+  })
+
+  it('keeps the first of two columns that read as the same one', () => {
+    expect(tableToRecords([['Email', 'Name', 'E-mail'], ['first@example.com', 'Ana', 'second@example.com']])).toEqual([
+      { rep_email: 'first@example.com', rep_name: 'Ana', _row: 2 },
+    ])
+  })
+
   it('keeps a column it doesn’t know under its own tidied name', () => {
     expect(tableToRecords([['Email', 'Notes for HR'], ['a@example.com', 'hi']])).toEqual([{ rep_email: 'a@example.com', notes_for_hr: 'hi', _row: 2 }])
   })
@@ -66,6 +79,20 @@ describe('tableToRecords', () => {
   })
 })
 
+describe('columnClashes', () => {
+  it('names every column that lost out to an earlier one', () => {
+    expect(columnClashes(['Email', 'Name', 'E-mail', 'Full name', 'Team'])).toEqual([
+      '“E-mail” reads as rep_email too, so only “Email” is used',
+      '“Full name” reads as rep_name too, so only “Name” is used',
+    ])
+  })
+
+  it('has nothing to say about a clean header or blank cells', () => {
+    expect(columnClashes(['rep_email', 'rep_name', 'team', 'start_date'])).toEqual([])
+    expect(columnClashes(['Email', '', '', null])).toEqual([])
+  })
+})
+
 describe('parseActivity', () => {
   it('takes the five names as they are', () => {
     expect(['training', 'fair', 'hub', 'club', 'quota'].map(parseActivity)).toEqual(['training', 'fair', 'hub', 'club', 'quota'])
@@ -90,13 +117,18 @@ describe('parseActivity', () => {
 
 describe('parseFormat', () => {
   it('reads in person and virtual however they’re typed', () => {
-    for (const value of ['In person', 'in-person', 'IN PERSON', 'Onsite', 'On site', 'Live']) expect(parseFormat(value), value).toBe('in person')
+    for (const value of ['In person', 'in-person', 'IN PERSON', 'Onsite', 'On site', 'Live, in person']) expect(parseFormat(value), value).toBe('in person')
     for (const value of ['Virtual', 'online', 'Remote', 'Webinar']) expect(parseFormat(value), value).toBe('virtual')
+  })
+  // "Live" turns up on virtual sessions too, so it never makes one in person.
+  it('reads live sessions online as virtual', () => {
+    for (const value of ['Live webinar', 'Virtual (live)', 'Live online', 'Live virtual session']) expect(parseFormat(value), value).toBe('virtual')
   })
   it('leaves anything else blank', () => {
     expect(parseFormat('')).toBe('')
     expect(parseFormat(null)).toBe('')
     expect(parseFormat('hybrid')).toBe('')
+    expect(parseFormat('Live')).toBe('')
   })
 })
 
@@ -113,6 +145,15 @@ describe('parseDate', () => {
     expect(parseDate('06/07/2027')).toBe('2027-06-07')
     expect(parseDate('6/17/27')).toBe('2027-06-17')
     expect(parseDate('10/14/26')).toBe('2026-10-14')
+  })
+
+  // Excel's CSV writes a date-and-time cell this way.
+  it('reads M/D/YYYY with a time after it', () => {
+    expect(parseDate('6/17/2027 0:00')).toBe('2027-06-17')
+    expect(parseDate('6/17/2027 12:00:00 AM')).toBe('2027-06-17')
+    expect(parseDate('6/17/27 14:30')).toBe('2027-06-17')
+    expect(parseDate('6/17/2027 soon')).toBe('')
+    expect(parseDate('6/17/2027x')).toBe('')
   })
 
   it('reads Excel date numbers, as a number or as text', () => {
@@ -178,7 +219,13 @@ describe('toStampRow', () => {
       location: 'Greenville',
     })
     expect(toStampRow({ ...raw, format: 'Webinar' })).toMatchObject({ format: 'virtual' })
-    expect(toStampRow({ ...raw, format: '' })).toMatchObject({ format: '' })
+  })
+
+  // It can't count toward the in-person four, so it never reads as in person.
+  it('makes a training virtual when its format is blank or unreadable', () => {
+    expect(toStampRow({ ...raw, format: '' })).toMatchObject({ format: 'virtual' })
+    expect(toStampRow({ ...raw, format: 'hybrid' })).toMatchObject({ format: 'virtual' })
+    expect(toStampRow({ ...raw, format: undefined })).toMatchObject({ format: 'virtual' })
   })
 
   it('puts fairs and Club Express in a room, and Hub courses nowhere', () => {
@@ -199,6 +246,17 @@ describe('toStampRow', () => {
   })
 })
 
+describe('stampKey', () => {
+  // A copy of the stamp id's rules, so it must never drift from model.ts.
+  it('is the rep plus the id the passport gives the stamp', () => {
+    const names = ['Zebra solutions workshop', 'Zebra workshop!', '  ZEBRA -- Workshop  ', 'Amélie’s café tour', 'Club Express, Fall', 'HPE Aruba: Instant On', '']
+    for (const event of names) {
+      const row = { rep_email: 'ana@example.com', activity: 'training' as const, event, supplier: 'Zebra', date: '2027-03-17', format: 'in person' as const, location: '' }
+      expect(stampKey(row), event).toBe(`ana@example.com|${stampFrom(row).id}`)
+    }
+  })
+})
+
 describe('cleanData', () => {
   const reps = [
     { rep_email: 'ana@example.com', rep_name: 'Ana', team: 'POSB', start_date: '' },
@@ -216,6 +274,7 @@ describe('cleanData', () => {
     { rep_email: 'ben@example.com', ...training, activity: 'lunch' },
     { rep_email: 'ben@example.com', ...training, activity: 'fair', date: 'soon' },
     { rep_email: 'ben@example.com', ...training, date: '2027-04-21' },
+    { rep_email: 'ben@example.com', ...training, date: '2027-05-19', format: 'hybrid' },
   ]
   const { data, problems } = cleanData(reps, stamps)
 
@@ -229,6 +288,7 @@ describe('cleanData', () => {
       'Stamps row 5: no format, so it counts as virtual',
       'Stamps row 6: no activity it knows (“lunch”)',
       'Stamps row 7: no date it can read (“soon”)',
+      'Stamps row 9: no format it knows (“hybrid”), so it counts as virtual',
     ])
   })
 
@@ -239,9 +299,45 @@ describe('cleanData', () => {
     ])
     expect(data.stamps.map((s) => [s.rep_email, s.date, s.format])).toEqual([
       ['ana@example.com', '2027-03-17', 'in person'],
-      ['ben@example.com', '2027-03-17', ''],
+      ['ben@example.com', '2027-03-17', 'virtual'],
       ['ben@example.com', '2027-04-21', 'in person'],
+      ['ben@example.com', '2027-05-19', 'virtual'],
     ])
+  })
+
+  // The passport tells stamps apart by their id, so the check uses it too.
+  it('drops a copy whose event name differs only in case or punctuation', () => {
+    const rows = [
+      { rep_email: 'ana@example.com', ...training, event: 'Zebra workshop' },
+      { rep_email: 'ana@example.com', ...training, event: 'Zebra workshop!' },
+      { rep_email: 'ana@example.com', ...training, event: '  zebra   WORKSHOP ' },
+    ]
+    const clean = cleanData(reps, rows)
+    expect(clean.data.stamps).toHaveLength(1)
+    expect(clean.problems.filter((p) => p.startsWith('Stamps'))).toEqual(['Stamps row 3: the same stamp is already on row 2', 'Stamps row 4: the same stamp is already on row 2'])
+  })
+
+  it('says how to keep two suppliers’ sessions that share a name and a day', () => {
+    const rows = [
+      { rep_email: 'ana@example.com', ...training, event: 'Partner training', supplier: 'Zebra' },
+      { rep_email: 'ana@example.com', ...training, event: 'Partner training', supplier: 'Honeywell' },
+      { rep_email: 'ana@example.com', ...training, event: 'Partner training', supplier: 'zebra' },
+    ]
+    const clean = cleanData(reps, rows)
+    expect(clean.data.stamps.map((s) => s.supplier)).toEqual(['Zebra'])
+    expect(clean.problems.filter((p) => p.startsWith('Stamps'))).toEqual([
+      'Stamps row 3: same event and day as row 2 but Honeywell, not Zebra, so it’s left out. Give each session its own event name to keep both',
+      'Stamps row 4: the same stamp is already on row 2',
+    ])
+  })
+
+  it('keeps the same name on another day, or for another activity', () => {
+    const rows = [
+      { rep_email: 'ana@example.com', ...training },
+      { rep_email: 'ana@example.com', ...training, date: '2027-03-18' },
+      { rep_email: 'ana@example.com', ...training, activity: 'Hub course' },
+    ]
+    expect(cleanData(reps, rows).data.stamps).toHaveLength(3)
   })
 
   it('reads a whole sheet straight from its grids', () => {

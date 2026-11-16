@@ -1,12 +1,12 @@
 // The words for where a rep stands. The data page gets a head and a line under
-// it, the activity pages get an endorsement once the demo records something,
-// and the board and checklist get short labels. Kept here so the wording
-// follows the rules exactly and the tests can check it.
+// it, the activity pages and the seal page get an endorsement once the demo
+// records something, and the board and checklist get short labels. Kept here
+// so the wording follows the rules exactly and the tests can check it.
 
 import { ACTIVITIES, CLUB_EXPRESS, PROGRAM_YEAR, QUOTA_DATE, type Activity } from '../config'
 import { longDate, stampDate } from './format'
 import type { Stamp } from './model'
-import { clubEventsMissed, stillNeeded, type Context, type Progress, type RepStats, type Status } from './rules'
+import { clubEventsMade, clubEventsMissed, stillNeeded, type Context, type Progress, type RepStats, type Status } from './rules'
 
 const NBSP = ' '
 const WORDS = ['None', 'One', 'Two', 'Three', 'Four', 'Five']
@@ -35,7 +35,8 @@ export function needPhrase(p: Progress, ctx: Context): string {
     case 'club': {
       if (n === 2) return 'both Club Express events'
       // Name the one still to come, when the calendar has it.
-      const next = CLUB_EXPRESS.find((e) => e.date >= ctx.today && !p.stamps.some((s) => s.date === e.date))
+      const made = clubEventsMade(p.stamps)
+      const next = CLUB_EXPRESS.find((e) => e.date >= ctx.today && !made.includes(e.title))
       return next ? next.title : '1 more Club Express event'
     }
     case 'quota':
@@ -111,8 +112,9 @@ function overall(stats: RepStats): string {
   return `${stats.met} of ${ACTIVITIES.length} met`
 }
 
-// Written on an activity page once the demo records a stamp there, like an
-// officer's note: the date, the count on this page, and where that leaves you.
+// Written on an activity page or the seal page once the demo records something
+// there, like an officer's note: the date, the count on this page (the seal
+// page skips it), and where that leaves you.
 // Non-breaking spaces keep "17 JUN 2027" and "2 of 2" from splitting.
 export function endorsement(stamp: Stamp, stats: RepStats): string {
   const p = stats.progress[stamp.activity]

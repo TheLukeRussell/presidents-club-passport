@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import { ACTIVITIES, CLUB_EXPRESS, DEMO_TODAY, MINIMUMS, QUOTA_DATE } from '../config'
 import { buildModel } from './model'
-import { clubEventsMissed, countedStamps, lastStampDay, repStats, statusOf, stillNeeded } from './rules'
+import { clubEventsMade, clubEventsMissed, countedStamps, countingStamps, lastStampDay, repStats, statusOf, stillNeeded } from './rules'
 import { modelOf, repOf, sheet, stampRow, statsOf, TODAY } from './test-helpers'
 
 const [FALL, SPRING] = CLUB_EXPRESS
@@ -129,6 +129,51 @@ describe('Club Express', () => {
   it('never counts another activity’s stamp from the same day', () => {
     const stats = statsOf('', TODAY, (name) => [stampRow(name, 'fair', FALL.date)])
     expect(stats.progress.club.reachable).toBe(false)
+  })
+
+  // Fall typed in twice, a day apart, is still one event: Spring is missing.
+  it('counts events, not stamps, so a duplicate row can’t meet it', () => {
+    const twice = (name: string) => [stampRow(name, 'club', '2026-10-15', { event: 'Club Express Fall' })]
+    const stats = statsOf('fall', TODAY, twice)
+    expect(stats.progress.club).toMatchObject({ counted: 1, met: false, short: 1, reachable: true })
+    expect(stats.progress.club.stamps).toHaveLength(2)
+    expect(stats.total).toBe(2)
+    expect(statsOf('fall, spring', TODAY, twice).progress.club).toMatchObject({ counted: 2, met: true })
+  })
+
+  it('doesn’t count a stamp that matches neither event', () => {
+    const stats = statsOf('spring', TODAY, (name) => [stampRow(name, 'club', '2026-10-15', { event: 'Regional kickoff' })])
+    expect(stats.progress.club).toMatchObject({ counted: 1, met: false, reachable: false })
+    expect(stats.outOfReach).toEqual(['club'])
+  })
+
+  // Named Fall but dated on Spring's day: one stamp, one event.
+  it('lets one stamp stand for one event only', () => {
+    const odd = [stampRow('Ana', 'club', SPRING.date, { event: 'Club Express Fall' })]
+    const stamps = buildModel({ reps: sheet({ Ana: '' }).reps, stamps: odd }).stamps
+    expect(clubEventsMade(stamps)).toEqual([FALL.title])
+    expect(clubEventsMissed(stamps, { today: '2027-06-18' })).toEqual([SPRING.title])
+  })
+})
+
+describe('clubEventsMade', () => {
+  it('lists the events made, in calendar order', () => {
+    const model = modelOf({ Ana: 'spring, fall', Ben: 'fall', Cy: '' })
+    const made = (name: string) => clubEventsMade(model.byRep.get(repOf(model, name).email) ?? [])
+    expect(made('Ana')).toEqual([FALL.title, SPRING.title])
+    expect(made('Ben')).toEqual([FALL.title])
+    expect(made('Cy')).toEqual([])
+  })
+})
+
+describe('countingStamps', () => {
+  it('keeps what counts toward each minimum, in date order', () => {
+    const model = modelOf({ Ana: '2 in person, 2 virtual, 1 fair, fall, spring' }, [stampRow('Ana', 'club', '2026-10-15', { event: 'Club Express Fall' })])
+    const stamps = model.byRep.get(repOf(model, 'Ana').email)!
+    expect(countingStamps('training', stamps).map((s) => s.format)).toEqual(['in person', 'in person'])
+    expect(countingStamps('fair', stamps)).toHaveLength(1)
+    expect(countingStamps('club', stamps).map((s) => s.date)).toEqual([FALL.date, SPRING.date])
+    expect(countingStamps('hub', stamps)).toEqual([])
   })
 })
 

@@ -66,6 +66,16 @@ describe('needPhrase', () => {
     // Nothing left on the calendar.
     expect(need('fall', 'club', { today: '2027-06-18' })).toBe('1 more Club Express event')
   })
+
+  // Fall twice is still one event, and Fall typed with the wrong day still
+  // counts by its name, so Spring is the one to name.
+  it('matches Club Express events the way the rules do', () => {
+    const fallTwice = statsOf('fall', TODAY, (name) => [stampRow(name, 'club', '2026-10-15', { event: 'Club Express Fall' })])
+    expect(needPhrase(fallTwice.progress.club, TODAY)).toBe('Club Express Spring')
+    const fallDay = { today: '2026-10-14' }
+    const dayEarly = statsOf('', fallDay, (name) => [stampRow(name, 'club', '2026-10-13', { event: 'club express fall' })])
+    expect(needPhrase(dayEarly.progress.club, fallDay)).toBe('Club Express Spring')
+  })
 })
 
 describe('progressLabel and countOf', () => {

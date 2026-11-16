@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { SUPPLIERS } from '../config'
-import { daysBetween, firstName, givenNames, initials, longDate, monthName, ordinal, plural, shortDate, stampDate, surname } from './format'
+import { firstName, givenNames, initials, longDate, ordinal, plural, shortDate, stampDate, surname } from './format'
 import { buildModel, findRep, repIdFromEmail, stampFrom, stampsOf, withStamps } from './model'
 import { hashString, seededRandom, shuffled, unitFor } from './random'
 import { repStats } from './rules'
@@ -139,8 +139,6 @@ describe('format', () => {
     expect(shortDate('2027-06-17')).toBe('Thu, Jun 17')
     expect(longDate('2027-06-30')).toBe('June 30, 2027')
     expect(stampDate('2027-01-05')).toBe('05 JAN 2027')
-    expect(daysBetween('2027-06-17', '2027-07-14')).toBe(27)
-    expect(monthName(10)).toBe('October')
   })
   it('does ordinals', () => {
     expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 101].map(ordinal)).toEqual(['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '101st'])

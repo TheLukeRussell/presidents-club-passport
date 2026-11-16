@@ -51,9 +51,10 @@ export function parseCsv(text: string, separator = ','): string[][] {
 
 // Excel writes commas, semicolons where the decimal mark is a comma, and tabs
 // from "Text (Tab delimited)". The header row says which: whichever shows up
-// most outside quotes. Commas win a tie.
+// most outside quotes. Commas win a tie. A BOM at the start can't change the
+// count, so it's left in.
 export function guessSeparator(text: string): string {
-  const header = (/^[^\r\n]*/.exec(text.replace(/^﻿/, ''))?.[0] ?? '').replace(/"[^"]*"/g, '')
+  const header = (/^[^\r\n]*/.exec(text)?.[0] ?? '').replace(/"[^"]*"/g, '')
   const count = (sep: string) => header.split(sep).length - 1
   return [';', '\t'].reduce((best, sep) => (count(sep) > count(best) ? sep : best), ',')
 }

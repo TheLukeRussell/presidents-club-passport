@@ -26,7 +26,8 @@ export const MINIMUMS: Record<Activity, number> = {
 }
 
 // Stamp slots on each activity's page. Anything past these goes in the
-// page's "Also attended" list. Quota has its own seal page instead.
+// page's extras list ("Also attended", or "Also finished" for Hub). Quota has
+// its own seal page instead.
 export const SLOTS = { training: 4, fair: 2, hub: 2, club: 2 } as const
 export type SlotActivity = keyof typeof SLOTS
 

@@ -25,7 +25,8 @@ export function seededRandom(seed: number): () => number {
 }
 
 // One stable number in [0, 1) for a given key. Handy when you need a single
-// coin flip or tilt per rep and training without carrying a generator around.
+// coin flip or tilt per rep and stamp (or activity) without carrying a
+// generator around.
 export function unitFor(key: string, seed = 0): number {
   return seededRandom(hashString(key) ^ seed)()
 }

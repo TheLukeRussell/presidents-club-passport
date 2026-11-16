@@ -29,16 +29,6 @@ export function stampDate(date: string): string {
   return `${String(d).padStart(2, '0')} ${MONTHS[m - 1].toUpperCase()} ${y}`
 }
 
-export function monthName(month: number): string {
-  return MONTHS_LONG[month - 1]
-}
-
-export function daysBetween(from: string, to: string): number {
-  const a = parts(from)
-  const b = parts(to)
-  return Math.round((Date.UTC(b.y, b.m - 1, b.d) - Date.UTC(a.y, a.m - 1, a.d)) / 86400000)
-}
-
 // 1st, 2nd, 3rd, 4th, 11th, 12th, 13th, 21st
 export function ordinal(n: number): string {
   const tens = n % 100
