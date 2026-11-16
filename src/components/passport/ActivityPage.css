@@ -1,0 +1,100 @@
+/* Hallmark · this folder follows the build stamp in src/styles/app.css */
+/* Activity pages (3 to 6): the heading and count, the slots (VisaPage.css
+   has the grid and the print, StampSlot.css the slots and list rows), the
+   Also attended list, and the room kept for the endorsement at the foot of
+   the page. */
+
+.activity__head { display: grid; gap: var(--space-2xs); }
+
+/* "2 of 4 in person · 5 stamps · Minimum met". Every part starts with a
+   dot, and the line is pulled left by one dot's width under a clip, so the
+   dot that starts a line (the first, or one wrapped on a narrow phone) is
+   cut off and only the dots between parts show. */
+.activity__count {
+  --sep: 1.25em;
+  display: flex;
+  flex-wrap: wrap;
+  margin-left: calc(-1 * var(--sep));
+  font-size: var(--text-sm);
+  color: var(--color-ink-2);
+}
+.activity__count > span::before {
+  content: "·";
+  display: inline-block;
+  width: var(--sep);
+  text-align: center;
+  color: var(--color-muted);
+}
+.activity__tally { color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.activity__count-room { display: grid; overflow: hidden; }
+.activity__count-room > * { grid-area: 1 / 1; }
+.activity__count--reserve { visibility: hidden; }
+
+/* Also attended: a native disclosure, closed until someone opens it. */
+.activity__more { min-width: 0; }
+.activity__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: 44px;
+  width: fit-content;
+  padding-inline: var(--space-2xs);
+  margin-inline: calc(-1 * var(--space-2xs));
+  border-radius: var(--radius-input);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-ink);
+  cursor: pointer;
+  list-style: none;
+}
+.activity__summary::-webkit-details-marker { display: none; }
+/* A chevron that turns as it opens. */
+.activity__summary::before {
+  content: "";
+  width: 0.45em;
+  height: 0.45em;
+  margin-inline: 0.15em 0.1em;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--dur-micro) var(--ease-out);
+}
+.activity__more[open] > .activity__summary::before { transform: rotate(45deg); }
+.activity__summary:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+@media (hover: hover) { .activity__summary:hover { background: var(--color-paper); } }
+
+.activity__more-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+  padding-inline: var(--space-2xs);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.activity__extras {
+  display: grid;
+  margin: var(--space-2xs) 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-rule);
+}
+.activity__extras > li { border-bottom: 1px solid var(--color-rule); }
+
+/* The endorsement sits over the room kept for the longest one, both in one
+   grid cell at the foot of the page, and sits on the bottom of that room. */
+.activity__endorse { display: grid; margin-top: auto; }
+.activity__endorse > * { grid-area: 1 / 1; }
+.activity__endorse > .visa__endorse { margin-top: 0; align-self: end; }
+
+@media (prefers-reduced-motion: reduce) {
+  .activity__summary::before { transition: none; }
+}
+
+/* High contrast: the count badge keeps its edge. */
+@media (forced-colors: active) {
+  .activity__more-count { border-color: CanvasText; }
+}

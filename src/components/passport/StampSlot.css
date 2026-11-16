@@ -1,0 +1,94 @@
+/* Stamp slots on the activity pages. A stamped slot is just the stamp on the
+   page with a small caption under it (in person, virtual, the city, online
+   course). A slot still to fill is a dashed outline saying so. Both are the
+   same size, so a stamp landing never moves anything. At the end, the rows
+   in the Also attended list. */
+
+.slot {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 1fr auto;
+  place-items: center;
+  gap: var(--space-2xs);
+  min-width: 0;
+  min-height: 112px;
+  padding: var(--space-xs);
+  border: 1px dashed transparent;
+  border-radius: var(--radius-card);
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  text-align: center;
+}
+
+button.slot { cursor: pointer; transition: background-color var(--dur-micro) var(--ease-out); }
+@media (hover: hover) { button.slot:hover { background: var(--color-paper); } }
+button.slot:active { transform: translateY(1px); }
+.slot:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+
+/* The stamp and, while it lands, the stamper over it. Stays above the
+   neighbouring slots so the stamper can swing in across them. */
+.slot__stamp { position: relative; display: grid; grid-area: 1 / 1; place-items: center; width: 100%; }
+.slot.is-landing { z-index: var(--z-raised); }
+
+.slot__caption { grid-area: 2 / 1; font-size: var(--text-xs); color: var(--color-muted); }
+
+/* Still needed: the room a stamp would take, a dashed outline, and the
+   words in the middle of it. */
+.slot--empty { border-color: var(--color-muted); }
+.slot__room { visibility: hidden; }
+.slot__needed {
+  grid-area: 1 / 1 / 3 / 2;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+/* Phones: a little less air above and below each stamp, so a page fits
+   under the top bar on a big iPhone. */
+@media (max-width: 40rem) {
+  .slot { min-height: 104px; padding-block: var(--space-2xs); }
+}
+
+/* One extra stamp: its name, then the date and how or where. */
+.extra {
+  display: grid;
+  gap: var(--space-3xs);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-xs) var(--space-2xs);
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-micro) var(--ease-out);
+}
+@media (hover: hover) { .extra:hover { background: var(--color-paper); } }
+.extra:focus-visible { outline: 2px solid var(--color-focus); outline-offset: -2px; }
+.extra__name { font-weight: 700; line-height: 1.25; }
+.extra__meta { font-size: var(--text-sm); line-height: 1.3; color: var(--color-ink-2); }
+
+/* Today's stamp landing on a full page: the new row flashes a tint of the
+   stamp's ink, then settles back to the paper. */
+.extra--ink-1 { --extra-ink: var(--color-stamp-1); }
+.extra--ink-2 { --extra-ink: var(--color-stamp-2); }
+.extra--ink-3 { --extra-ink: var(--color-stamp-3); }
+@keyframes extra-new {
+  0%, 55% { background-color: color-mix(in oklab, var(--extra-ink) 18%, transparent); }
+  100% { background-color: transparent; }
+}
+.extra.is-new { animation: extra-new var(--dur-press) var(--ease-out) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  button.slot, .extra { transition: none; }
+  .extra.is-new { animation: none; }
+}
+
+/* High contrast: the dashed outline in the system's text colour, and the
+   new row marked with an outline instead of a tint. */
+@media (forced-colors: active) {
+  .slot--empty { border-color: CanvasText; }
+  .extra.is-new { outline: 2px solid Highlight; outline-offset: -2px; }
+}

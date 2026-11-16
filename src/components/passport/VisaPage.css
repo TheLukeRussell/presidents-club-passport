@@ -1,5 +1,7 @@
-/* Visa page layout: the quarter as the heading, then a two-column grid of
-   slots on faintly printed paper. Six trainings a quarter fill three rows. */
+/* The visa-style pages (3 to 8): faintly printed paper, an uppercase
+   heading, a two-column grid of stamp slots, the thump when a stamp lands
+   and the endorsement written in after it. The activity pages, the
+   checklist and the seal page all use these. */
 
 /* The security print. Real visa pages are matte paper printed flat with
    fine guilloche lines and a rosette in pale ink. It never shines and never
@@ -54,9 +56,10 @@
 .page--visa.is-thumping { animation: visa-thump var(--dur-press) both; }
 
 /* The endorsement, like an officer's note written under the stamps, in
-   the same ink as the stamp it's about (Rogue for a miss). It writes itself
-   in left to right once the stamper has lifted. */
-.visa__endorse {
+   the same ink as the stamp it's about. It writes itself in left to right
+   once the stamper has lifted. The reserve is the same words kept hidden,
+   holding the room one will need. */
+.visa__endorse, .visa__reserve {
   margin-top: auto;
   max-width: 34ch;
   font-family: var(--font-display);
@@ -71,8 +74,7 @@
 .visa__endorse--ink-1 { color: var(--color-stamp-1); }
 .visa__endorse--ink-2 { color: var(--color-stamp-2); }
 .visa__endorse--ink-3 { color: var(--color-stamp-3); }
-.visa__endorse--missed { color: var(--color-miss); }
-.visa__endorse--reserve { visibility: hidden; }
+.visa__endorse--reserve, .visa__reserve { visibility: hidden; }
 
 @keyframes endorse-write {
   from { clip-path: inset(0 100% 0 0); }

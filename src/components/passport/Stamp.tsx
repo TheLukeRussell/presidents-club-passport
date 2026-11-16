@@ -1,16 +1,16 @@
-// One attendance stamp: supplier and date inside a shape, in the supplier's
-// ink, tilted a little. Text only, no logos. Drawn as SVG so the shape, the
-// text and the tilt all scale together.
+// One stamp: a shape in its ink, tilted a little, with a few words inside.
+// Trainings carry the supplier and date, fairs the fair and its city, Hub
+// courses the supplier and HUB, Club Express its season. Text only, no
+// logos. Drawn as SVG so the shape, the text and the tilt all scale together.
 
 import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react'
+import type { Stamp as StampData } from '../../lib/model'
 import { stampLook, type StampShape } from '../../lib/stamps'
 import './Stamp.css'
 
 interface Props {
-  supplier: string
-  date: string
+  stamp: StampData
   repEmail: string
-  trainingId: string
   landing?: boolean
 }
 
@@ -23,10 +23,11 @@ const STAMPER_ROOM = 110
 const BAR_GAP = 8
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
-// The widest the supplier lines and the date line can run inside each shape,
-// in SVG units. The date sits lower, where round and angled shapes narrow.
-const ROOM: Record<StampShape, number> = { circle: 88, rect: 118, oval: 100, hexagon: 96, ticket: 108, octagon: 96 }
-const DATE_ROOM: Record<StampShape, number> = { circle: 78, rect: 118, oval: 96, hexagon: 84, ticket: 108, octagon: 96 }
+// The widest the name lines and the line under the rule can run inside each
+// shape, in SVG units. The lower line sits where round, angled and pointed
+// shapes narrow. Club Express sets its own (see layoutFor).
+const ROOM: Record<StampShape, number> = { circle: 88, rect: 118, oval: 100, hexagon: 96, ticket: 108, octagon: 96, banner: 90, shield: 100, diamond: 92 }
+const SUB_ROOM: Record<StampShape, number> = { circle: 78, rect: 118, oval: 96, hexagon: 84, ticket: 108, octagon: 96, banner: 96, shield: 60, diamond: 46 }
 
 // Bold Gotham or Helvetica capitals average about two thirds of an em wide.
 // Close enough to pick a size and decide whether a name needs two lines; the
@@ -58,6 +59,82 @@ function fitLines(name: string, room: number): { lines: string[]; size: number }
 function stampDay(date: string): string {
   const [y, m, d] = date.split('-')
   return `${d} ${MONTHS[Number(m) - 1]} ${y.slice(2)}`
+}
+
+// "Fall Supplier Fair" prints as FALL FAIR. Anything else keeps its name.
+function fairName(event: string): string {
+  const short = event.replace(/\bsupplier\b/i, '').replace(/\s+/g, ' ').trim()
+  return short || 'FAIR'
+}
+
+// "Club Express Spring" prints as SPRING. A name without a season gets one
+// from its month.
+const SEASONS = ['WINTER', 'WINTER', 'SPRING', 'SPRING', 'SPRING', 'SUMMER', 'SUMMER', 'SUMMER', 'FALL', 'FALL', 'FALL', 'WINTER']
+function clubSeason(stamp: StampData): string {
+  const rest = stamp.event.replace(/club\s*express/i, '').replace(/\s+/g, ' ').trim()
+  return rest ? rest.toUpperCase() : SEASONS[Number(stamp.date.slice(5, 7)) - 1]
+}
+
+interface Line {
+  text: string
+  y: number
+  size: number
+  room: number
+  kind: 'name' | 'sub'
+}
+
+interface Layout {
+  lines: Line[]
+  ruleY: number
+}
+
+// Where the lines sit, each as [one name line, two name lines].
+interface Heights {
+  top: [number, number]
+  rule: [number, number]
+  sub: [number, number]
+  subSize: number
+}
+
+// Name lines on top, a short rule, then one smaller line under it. Each
+// shape gets its own heights so nothing crowds a point or a notch.
+function stacked(name: string, sub: string, shape: StampShape, at: Heights): Layout {
+  const { lines, size } = fitLines(name, ROOM[shape])
+  const two = lines.length === 2 ? 1 : 0
+  return {
+    lines: [
+      ...lines.map((text, i) => ({ text, y: at.top[two] + i * (size + 1), size, room: ROOM[shape], kind: 'name' as const })),
+      { text: sub, y: at.sub[two], size: at.subSize, room: SUB_ROOM[shape], kind: 'sub' },
+    ],
+    ruleY: at.rule[two],
+  }
+}
+
+const PLAIN: Heights = { top: [52, 36], rule: [62, 65], sub: [82, 84], subSize: 17 }
+const SHIELD: Heights = { top: [46, 32], rule: [57, 60], sub: [79, 81], subSize: 17 }
+const BANNER: Heights = { top: [52, 38], rule: [62, 66], sub: [82, 85], subSize: 16 }
+
+function layoutFor(stamp: StampData, shape: StampShape): Layout {
+  switch (stamp.activity) {
+    case 'fair':
+      return stacked(fairName(stamp.event), (stamp.location || stampDay(stamp.date)).toUpperCase(), shape, BANNER)
+    case 'hub':
+      return stacked(stamp.supplier || 'Hub course', 'HUB', shape, SHIELD)
+    case 'club':
+      // A diamond is narrow top and bottom, so the words sit in its middle.
+      return {
+        lines: [
+          { text: 'CLUB', y: 43, size: 18, room: 54, kind: 'name' },
+          { text: 'EXPRESS', y: 61, size: 18, room: 92, kind: 'name' },
+          { text: clubSeason(stamp), y: 81, size: 12.5, room: SUB_ROOM.diamond, kind: 'sub' },
+        ],
+        ruleY: 67,
+      }
+    case 'quota':
+      return stacked('Quota', stampDay(stamp.date), shape, PLAIN)
+    case 'training':
+      return stacked(stamp.supplier || stamp.event, stampDay(stamp.date), shape, PLAIN)
+  }
 }
 
 function Shape({ shape }: { shape: StampShape }) {
@@ -105,13 +182,38 @@ function Shape({ shape }: { shape: StampShape }) {
           <polygon points="42,9 98,9 131,35 131,75 98,101 42,101 9,75 9,35" className="stamp__line--light" />
         </>
       )
+    case 'banner':
+      // A ribbon with a V cut into each end, for supplier fairs.
+      return (
+        <>
+          <path d="M3 12 H137 L121 55 L137 98 H3 L19 55 Z" className="stamp__line--heavy" />
+          <path d="M11.6 18 H128.4 L114.6 55 L128.4 92 H11.6 L25.4 55 Z" className="stamp__line--light" />
+        </>
+      )
+    case 'shield':
+      // A crest, for Hub courses.
+      return (
+        <>
+          <path d="M8 6 H132 V44 C132 74 104 94 70 106 C36 94 8 74 8 44 Z" className="stamp__line--heavy" />
+          <path d="M14 12 H126 V44 C126 70 100 88 70 99 C40 88 14 70 14 44 Z" className="stamp__line--light" />
+        </>
+      )
+    case 'diamond':
+      // On its point, for Club Express.
+      return (
+        <>
+          <polygon points="70,3 137,55 70,107 3,55" className="stamp__line--heavy" />
+          <polygon points="70,11 129,55 70,99 11,55" className="stamp__line--light" />
+        </>
+      )
   }
 }
 
-export function Stamp({ supplier, date, repEmail, trainingId, landing = false }: Props) {
-  const look = stampLook(supplier, repEmail, trainingId)
-  const { lines, size } = fitLines(supplier, ROOM[look.shape])
+export function Stamp({ stamp, repEmail, landing = false }: Props) {
+  const look = stampLook(stamp.activity, stamp.supplier, repEmail, stamp.id)
+  const { lines, ruleY } = layoutFor(stamp, look.shape)
   const ref = useRef<SVGSVGElement>(null)
+  const words = lines.map((l) => l.text).join('|')
 
   // Measure every line once it's drawn. Anything wider than its room gets
   // squeezed to fit with textLength, so a long name or a wider fallback font
@@ -136,7 +238,7 @@ export function Stamp({ supplier, date, repEmail, trainingId, landing = false }:
     return () => {
       live = false
     }
-  }, [supplier, date])
+  }, [words])
 
   // Make sure the stamp is on screen when it lands, with room above it for
   // the stamper coming down, and the endorsement that writes in under it a
@@ -163,15 +265,10 @@ export function Stamp({ supplier, date, repEmail, trainingId, landing = false }:
     else el.scrollIntoView({ block: 'center' })
   }, [landing])
 
-  const two = lines.length === 2
-  const top = two ? 36 : 52
-  const ruleY = two ? 65 : 62
-  const dateY = two ? 84 : 82
-
   return (
     <svg
       ref={ref}
-      className={`stamp stamp--ink-${look.ink}${landing ? ' is-landing' : ''}`}
+      className={`stamp stamp--ink-${look.ink} stamp--${look.shape}${landing ? ' is-landing' : ''}`}
       viewBox={`0 0 ${W} ${H}`}
       style={{ '--tilt': `${look.rotate}deg` } as CSSProperties}
       aria-hidden="true"
@@ -183,19 +280,16 @@ export function Stamp({ supplier, date, repEmail, trainingId, landing = false }:
         <text
           key={i}
           x={W / 2}
-          y={top + i * (size + 1)}
-          className="stamp__supplier"
-          style={{ fontSize: size }}
+          y={line.y}
+          className={line.kind === 'name' ? 'stamp__name' : 'stamp__sub'}
+          style={{ fontSize: line.size }}
           textAnchor="middle"
-          data-room={ROOM[look.shape]}
+          data-room={line.room}
         >
-          {line}
+          {line.text}
         </text>
       ))}
       <line x1={W / 2 - 24} x2={W / 2 + 24} y1={ruleY} y2={ruleY} className="stamp__line--light" />
-      <text x={W / 2} y={dateY} className="stamp__date" textAnchor="middle" data-room={DATE_ROOM[look.shape]}>
-        {stampDay(date)}
-      </text>
     </svg>
   )
 }

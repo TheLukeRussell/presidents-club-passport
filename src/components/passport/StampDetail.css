@@ -1,4 +1,4 @@
-/* The training detail slip. Centred on wide screens, a sheet from the
+/* The stamp detail slip. Centred on wide screens, a sheet from the
    bottom on phones. Appears in place, no motion. */
 
 .slip {
@@ -18,6 +18,7 @@
 .slip::backdrop { background: color-mix(in oklab, var(--color-ink) 45%, transparent); }
 
 .slip__inner { display: grid; gap: var(--space-md); padding: var(--space-lg); }
+.slip__head { display: grid; gap: var(--space-2xs); }
 
 .slip__title {
   font-size: var(--text-3xl);
@@ -56,4 +57,9 @@
     border-radius: var(--radius-page) var(--radius-page) 0 0;
   }
   .slip__inner { padding: var(--space-lg) var(--space-md); }
+}
+
+/* High contrast: the slip keeps an edge against the backdrop. */
+@media (forced-colors: active) {
+  .slip { border-color: CanvasText; }
 }

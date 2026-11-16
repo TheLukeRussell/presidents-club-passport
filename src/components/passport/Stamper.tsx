@@ -1,5 +1,5 @@
-// The rubber stamp that comes down on today's slot when attendance gets
-// recorded. It's only on screen for about a second and a half: it swings in,
+// The rubber stamp that comes down on an open slot when the demo records
+// one of today's events. It's only on screen for about a second and a half: it swings in,
 // hovers, presses the ink onto the page at the same tilt as the impression it
 // leaves, and lifts away. Its shadow on the page tightens as it comes down,
 // which is most of what makes the drop read as depth. Flat shapes in the
