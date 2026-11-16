@@ -27,6 +27,9 @@ const QUOTA_DAY = longDate(QUOTA_DATE).replace(/, \d{4}$/, '').replace(' ', '\u0
 export function DataPage({ rep, row, repCount, ctx }: Props) {
   const { stats, rank, status } = row
   const message = lineMessage(stats, ctx)
+  // Where every recording ends up. Two lines of each on a phone, longer
+  // than most reps' messages before it.
+  const qualified = lineMessage({ ...stats, qualified: true }, ctx)
   const quota = stats.progress.quota
   const [mrz1, mrz2] = mrzLines({
     name: rep.name,
@@ -147,10 +150,18 @@ export function DataPage({ rep, row, repCount, ctx }: Props) {
 
         {/* Where they stand, in one of four looks: gold on navy leather once
             they've qualified, Ember on Charcoal when only quota is left, plain
-            Charcoal with work to do, and a red outline when it's out of reach. */}
-        <div className={`data__line data__line--${status}`} role="status">
-          <p className="data__line-head">{message.head}</p>
-          <p className="data__line-sub">{message.sub}</p>
+            Charcoal with work to do, and a red outline when it's out of reach.
+            The qualified message's room is kept hidden in the same cell, so
+            qualifying never makes the book grow. */}
+        <div className="data__line-room">
+          <div className={`data__line data__line--${status}`} role="status">
+            <p className="data__line-head">{message.head}</p>
+            <p className="data__line-sub">{message.sub}</p>
+          </div>
+          <div className="data__line data__line--reserve" aria-hidden="true">
+            <p className="data__line-head">{qualified.head}</p>
+            <p className="data__line-sub">{qualified.sub}</p>
+          </div>
         </div>
       </Laminate>
 

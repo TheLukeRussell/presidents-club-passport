@@ -132,6 +132,11 @@
   text-wrap: balance;
 }
 .data__line-sub { font-size: var(--text-md); text-wrap: pretty; }
+/* The box and the room the qualified message takes share one cell. The
+   box keeps its own height; any room left over is paper under it. */
+.data__line-room { display: grid; }
+.data__line-room > .data__line { grid-area: 1 / 1; align-self: start; }
+.data__line--reserve { visibility: hidden; }
 /* Only quota left to come: the head lights up in Ember. */
 .data__line--on-track .data__line-head { color: var(--color-accent); }
 /* Qualified: the cover's navy leather and gold foil, like the seal. */
