@@ -1,0 +1,73 @@
+/* The gold quota seal, and the blind ring that waits for it. Three layers,
+   each the seal's outline as a stencil: a shadow, the foil, and the
+   engraving in darker gold on top. Only the foil ever moves (Cover.css lights
+   it as a .cover__mark), and nothing that moves sits under another mask. */
+
+.gold-seal {
+  --seal-size: 64px;
+  position: relative;
+  display: block;
+  flex-shrink: 0;
+  width: var(--seal-size);
+  aspect-ratio: 1;
+  /* Decoration, never a target: on the cover the whole page is the Open
+     passport button. */
+  pointer-events: none;
+}
+.gold-seal--large { --seal-size: min(60cqi, 240px); }
+
+.gold-seal__shadow,
+.gold-seal__foil,
+.gold-seal__engraving {
+  position: absolute;
+  inset: 0;
+  -webkit-mask: var(--seal-shape) center / contain no-repeat;
+  mask: var(--seal-shape) center / contain no-repeat;
+}
+.gold-seal__engraving {
+  -webkit-mask-image: var(--seal-engraving);
+  mask-image: var(--seal-engraving);
+  background-color: var(--color-foil-deep);
+}
+/* On paper it sits on the page a hair proud, so a soft edge of shadow
+   shows under it. On the leather it's pressed in, so the dark edge is above,
+   like the foil lettering. */
+.gold-seal__shadow {
+  background-color: color-mix(in srgb, var(--color-ink) 22%, transparent);
+  transform: translateY(1.5px);
+}
+.cover .gold-seal__shadow {
+  background-color: var(--color-foil-press);
+  transform: translateY(-1px);
+}
+
+/* The blind ring: a dent with no ink or foil in it. Light comes from the
+   top left, so the top inside edge of each groove is in shade and the
+   bottom one catches the light. */
+.gold-seal__ring,
+.gold-seal__ring::after {
+  position: absolute;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 1.5px 1px var(--blind-shade),
+    0 1px 0 var(--blind-light);
+}
+.gold-seal__ring { inset: 6%; }
+.gold-seal__ring::after { content: ""; inset: 14%; }
+.gold-seal--blind {
+  --blind-shade: color-mix(in srgb, var(--color-ink) 16%, transparent);
+  --blind-light: var(--ss-paper);
+}
+.cover .gold-seal--blind {
+  --blind-shade: color-mix(in srgb, var(--color-leather-edge) 85%, transparent);
+  --blind-light: color-mix(in srgb, var(--ss-paper) 12%, transparent);
+}
+
+/* High contrast: the seal in plain text colour, its engraving cut out of it,
+   and the ring as a plain outline. */
+@media (forced-colors: active) {
+  .gold-seal__shadow { display: none; }
+  .gold-seal__foil { forced-color-adjust: none; background: CanvasText; }
+  .gold-seal__engraving { forced-color-adjust: none; background: Canvas; }
+  .gold-seal__ring, .gold-seal__ring::after { box-shadow: none; border: 1px solid CanvasText; }
+}

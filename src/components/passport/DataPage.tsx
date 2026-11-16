@@ -1,13 +1,15 @@
-// The data page: who the passport belongs to, where they stand against the
-// line, what it takes to get there, and the machine-readable strip.
+// The data page: who the passport belongs to, how many of the five minimums
+// they've met, their rank, where quota stands, what's left, and the
+// machine-readable strip.
 
-import { EXPIRY_DATE, ISSUE_DATE, LINE, MIN_RECORDED } from '../../config'
-import { givenNames, initials, ordinal, plural, shortDate, stampDate, surname } from '../../lib/format'
+import { ACTIVITIES, EXPIRY_DATE, ISSUE_DATE, QUOTA_DATE } from '../../config'
+import { givenNames, initials, longDate, ordinal, stampDate, surname } from '../../lib/format'
 import { lineMessage } from '../../lib/messages'
 import { mrzLines } from '../../lib/mrz'
 import type { Rep } from '../../lib/model'
 import type { StandingRow } from '../../lib/ranking'
-import { percentOf, type Context } from '../../lib/rules'
+import type { Context } from '../../lib/rules'
+import { GoldSeal } from './GoldSeal'
 import { Laminate } from './Laminate'
 import { Page } from './Page'
 import './DataPage.css'
@@ -15,21 +17,23 @@ import './DataPage.css'
 interface Props {
   rep: Rep
   row: StandingRow
-  rankedCount: number
+  repCount: number
   ctx: Context
 }
 
-export function DataPage({ rep, row, rankedCount, ctx }: Props) {
-  const { stats, rank } = row
-  const percent = stats.rate === null ? null : percentOf(stats.rate)
+// "June 30", when quota results come in.
+const QUOTA_DAY = longDate(QUOTA_DATE).replace(/, \d{4}$/, '').replace(' ', '\u00a0')
+
+export function DataPage({ rep, row, repCount, ctx }: Props) {
+  const { stats, rank, status } = row
   const message = lineMessage(stats, ctx)
-  const status = row.above ? 'above' : 'below'
+  const quota = stats.progress.quota
   const [mrz1, mrz2] = mrzLines({
     name: rep.name,
     team: rep.team,
-    attended: stats.attended,
-    recorded: stats.recorded,
-    percent,
+    met: stats.met,
+    stamps: stats.total,
+    quota: quota.met,
     rank,
     issue: ISSUE_DATE,
     expiry: EXPIRY_DATE,
@@ -51,7 +55,7 @@ export function DataPage({ rep, row, rankedCount, ctx }: Props) {
             </div>
             <div>
               <dt>Code</dt>
-              <dd>STP</dd>
+              <dd>PCP</dd>
             </div>
           </dl>
         </header>
@@ -94,72 +98,59 @@ export function DataPage({ rep, row, rankedCount, ctx }: Props) {
 
         <dl className="data__stats">
           <div className="data__stat">
-            <dt>Stamps</dt>
+            <dt>Minimums met</dt>
             <dd>
-              {stats.recorded === 0 ? (
-                <span className="data__figure data__figure--word">None yet</span>
-              ) : (
-                <span className="data__figure">
-                  {stats.attended}
-                  <span className="data__of"> of {stats.recorded}</span>
-                </span>
-              )}
+              <span className="data__figure">
+                {stats.met}
+                <span className="data__of"> of {ACTIVITIES.length}</span>
+              </span>
             </dd>
           </div>
           <div className="data__stat">
-            <dt>Rate</dt>
+            <dt>Stamps</dt>
             <dd>
-              <span className="data__figure">{percent === null ? 'None' : `${percent}%`}</span>
+              <span className={`data__figure${stats.total === 0 ? ' data__figure--word' : ''}`}>{stats.total === 0 ? 'None yet' : stats.total}</span>
             </dd>
           </div>
           <div className="data__stat">
             <dt>Rank</dt>
             <dd>
-              {/* Unranked until MIN_RECORDED trainings are recorded. The note
-                  under it takes the same room as the date beside it, so the
-                  row doesn't grow. */}
-              {rank === null ? (
-                <span className="data__unranked">
-                  <span className="data__figure data__figure--word">Not yet</span>{' '}
-                  <span className="data__unranked-note">
-                    {plural(Math.max(MIN_RECORDED - stats.recorded, 1), 'more training', 'more trainings')} to go
-                  </span>
+              <span className="data__figure">
+                {ordinal(rank)}
+                <span className="data__of">
+                  {' '}
+                  of {repCount}
+                  {row.tied ? ', tied' : ''}
                 </span>
-              ) : (
-                <span className="data__figure">
-                  {ordinal(rank)}
-                  <span className="data__of">
-                    {' '}
-                    of {rankedCount}
-                    {row.tied ? ', tied' : ''}
-                  </span>
-                </span>
-              )}
+              </span>
             </dd>
           </div>
+          {/* Quota: when the results come in, then the gold seal once it's hit. */}
           <div className="data__stat">
-            <dt>Next training</dt>
-            <dd className="data__next">
-              {stats.next ? (
+            <dt>Quota</dt>
+            <dd className={`data__quota${quota.met ? ' is-met' : ''}`}>
+              {quota.met ? (
                 <>
-                  <span className="data__next-name">{stats.next.supplier}</span>
-                  <span className="data__next-date">
-                    {shortDate(stats.next.date)}
-                    {stats.next.date === ctx.today && <span className="tag tag--today">Today</span>}
-                  </span>
+                  <GoldSeal size="small" />
+                  <span className="data__quota-head">Achieved</span>
+                  <span className="data__quota-sub">{stampDate(quota.stamps[0].date)}</span>
                 </>
               ) : (
-                <span>None left this year</span>
+                <>
+                  <span className="data__quota-head">{quota.reachable ? 'Results due' : 'Not hit'}</span>
+                  <span className="data__quota-sub">{QUOTA_DAY}</span>
+                </>
               )}
             </dd>
           </div>
         </dl>
 
-        {/* The line’s number lives here, with the placeholder note beside it. */}
+        {/* Where they stand, in one of four looks: gold on navy leather once
+            they've qualified, Ember on Charcoal when only quota is left, plain
+            Charcoal with work to do, and a red outline when it's out of reach. */}
         <div className={`data__line data__line--${status}`} role="status">
           <p className="data__line-head">{message.head}</p>
           <p className="data__line-sub">{message.sub}</p>
-          <p className="data__line-note">The line is {Math.round(LINE * 100)}% for now (placeholder).</p>
         </div>
       </Laminate>
 

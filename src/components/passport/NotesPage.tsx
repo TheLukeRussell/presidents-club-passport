@@ -1,42 +1,76 @@
-// The inside cover: how the passport works and how to read a visa page,
-// using the same slot styles as the key. It's laminated like the data page,
-// so the first spread catches the light on both sides.
+// The inside cover: the five President’s Club minimums, how stamps count
+// toward them, and a key to what's on the pages. It's laminated like the data
+// page, so the first spread catches the light on both sides.
 
+import { ACTIVITIES, ACTIVITY_NAMES, CLUB_EXPRESS, MINIMUMS, PROGRAM_YEAR, QUOTA_DATE, type Activity } from '../../config'
+import { longDate } from '../../lib/format'
+import { GoldSeal } from './GoldSeal'
 import { Laminate } from './Laminate'
 import { Page } from './Page'
 import './NotesPage.css'
+
+// "June 30", when quota results come in.
+const QUOTA_DAY = longDate(QUOTA_DATE).replace(/, \d{4}$/, '').replace(' ', '\u00a0')
+
+// What each minimum asks for, in a word or two, straight from config.
+function minimum(activity: Activity): string {
+  const n = MINIMUMS[activity]
+  switch (activity) {
+    case 'training':
+      return `${n} in person`
+    case 'hub':
+      return `${n} courses`
+    case 'club':
+      return n === CLUB_EXPRESS.length ? 'Both events' : `${n} events`
+    case 'quota':
+      return 'Hit it'
+    default:
+      return String(n)
+  }
+}
 
 export function NotesPage() {
   return (
     <Page kind="notes" label="Inside cover" folio={1}>
       <Laminate>
         <h2 className="notes__title">How your passport works</h2>
-        <ol className="notes__rules">
-          <li>Every supplier training you attend earns a stamp on your visa pages.</li>
-          <li>Your rate is stamps divided by trainings you were invited to. Only trainings that already happened count.</li>
-          <li>Reach the line on your data page and you’ve met the training part of President’s Club.</li>
-        </ol>
+        <p className="notes__lead">
+          Meet all five minimums to qualify for President’s Club {PROGRAM_YEAR}.
+        </p>
+        <dl className="notes__minimums">
+          {ACTIVITIES.map((activity) => (
+            <div key={activity}>
+              <dt>{ACTIVITY_NAMES[activity]}</dt>
+              <dd>{minimum(activity)}</dd>
+            </div>
+          ))}
+        </dl>
+        <ul className="notes__rules">
+          <li>Every supplier training earns a stamp. Only in-person ones count toward the {MINIMUMS.training}.</li>
+          <li>Extras go in each page’s Also attended list.</li>
+          <li>Quota is the gold seal. Results land {QUOTA_DAY}.</li>
+        </ul>
 
         <div className="notes__key">
-          <p className="notes__key-title">Reading a visa page</p>
+          <p className="notes__key-title">On the pages</p>
           <ul className="notes__key-list">
             <li>
               <span className="notes__swatch notes__swatch--stamp" aria-hidden="true">
                 Stamped
               </span>
-              <span>A stamp means you were there.</span>
+              <span>You were there</span>
             </li>
             <li>
-              <span className="notes__swatch notes__swatch--missed" aria-hidden="true">
-                Missed
+              <span className="notes__swatch notes__swatch--needed" aria-hidden="true">
+                Still needed
               </span>
-              <span>Invited, didn’t make it. It counts against your rate.</span>
+              <span>Not yet</span>
             </li>
             <li>
-              <span className="notes__swatch notes__swatch--upcoming" aria-hidden="true">
-                Jul 14
+              <span className="notes__swatch notes__swatch--seal" aria-hidden="true">
+                <GoldSeal size="small" />
               </span>
-              <span>Still to come. It won’t count until it happens.</span>
+              <span>Quota hit</span>
             </li>
           </ul>
         </div>

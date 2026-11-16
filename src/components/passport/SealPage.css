@@ -1,0 +1,218 @@
+/* Page 8, the quota seal, set like the foot of a certificate on the same
+   security paper as the activity pages: the heading, the seal (or the blind
+   ring waiting for it), who it was awarded to and when, and the
+   endorsement. The seal press and its moment are at the bottom. */
+
+.seal-page .page__body { align-items: center; text-align: center; }
+
+.seal-page__title {
+  align-self: stretch;
+  font-size: var(--text-2xl);
+  font-weight: var(--display-weight);
+  line-height: 1.02;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+/* The seal, the ring and the press all share one square. */
+.seal-page__spot {
+  position: relative;
+  display: grid;
+  margin-top: var(--space-xs);
+}
+.seal-page__spot > .gold-seal { grid-area: 1 / 1; }
+
+/* Before and after stacked in one cell; only one shows. */
+.seal-page__words { display: grid; align-self: stretch; }
+.seal-page__words > * { grid-area: 1 / 1; }
+.seal-page__before {
+  align-self: center;
+  justify-self: center;
+  max-width: 28ch;
+  font-size: var(--text-lg);
+  line-height: 1.35;
+  color: var(--color-ink-2);
+  text-wrap: balance;
+}
+.seal-page__after { display: grid; gap: var(--space-3xs); }
+.seal-page__awarded { font-size: var(--text-sm); color: var(--color-muted); }
+.seal-page__name {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  font-size: var(--text-xl);
+  line-height: 1.1;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+.seal-page__date { font-variant-numeric: tabular-nums; }
+/* Only ever hide one, never set the other visible: the hidden sizer copy
+   of this page would show through. */
+.seal-page:not(.is-sealed) .seal-page__after,
+.seal-page.is-sealed:not(.is-pressing) .seal-page__before { visibility: hidden; }
+
+/* The endorsement, like an officer's note written under the seal in the
+   navy stamp ink. Its room is always kept: the longest it could be sits
+   under it, hidden. */
+.seal-page__endorse-room { display: grid; margin-top: auto; align-self: stretch; }
+.seal-page__endorse-room > * { grid-area: 1 / 1; }
+.seal-page__endorse {
+  justify-self: start;
+  max-width: 34ch;
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  font-size: var(--text-lg);
+  line-height: 1.2;
+  text-align: left;
+  text-transform: uppercase;
+  text-wrap: balance;
+  color: var(--color-stamp-2);
+  transform: rotate(-1.5deg);
+  transform-origin: left center;
+}
+.seal-page__endorse--reserve { visibility: hidden; }
+
+/* The moment, keyed to --dur-press (1400ms) like the stamper, so the
+   press, the seal, the page thump and the endorsement all hit together:
+     0 to 30%   the press swings in from the right and slows into a hover
+     30 to 38%  a small wind-up
+     38 to 46%  the press, faster all the way down
+     46%        contact, and the page thumps
+     46 to 64%  it squashes in and holds while the foil takes
+     64%        it lifts, and the seal is there under it, catching the light
+     80%        the endorsement writes itself in
+   Transform and opacity only, plus the foil's own glint. None of it under
+   reduced motion. */
+.seal-press {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-raised);
+  pointer-events: none;
+}
+.seal-press__shadow {
+  position: absolute;
+  inset: 4%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--color-stamper-shadow), transparent);
+  opacity: 0;
+  animation: seal-press-shadow var(--dur-press) both;
+}
+.seal-press__tool {
+  position: absolute;
+  left: -5%;
+  bottom: 0;
+  width: 110%;
+  height: auto;
+  overflow: visible;
+  transform-origin: 50% 100%;
+  animation: seal-press-trip var(--dur-press) both;
+}
+.seal-press__knob, .seal-press__neck { fill: var(--color-field); }
+.seal-press__knob-shine { fill: var(--color-field-3); }
+.seal-press__collar, .seal-press__face { fill: var(--color-foil-deep); }
+.seal-press__die { fill: var(--color-foil); }
+.seal-press__die-shine { fill: var(--color-foil-glint); }
+
+@keyframes seal-press-trip {
+  0% {
+    opacity: 0;
+    transform: translate(30%, -60%) rotate(-12deg) scale(1.3);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  10% { opacity: 1; }
+  30% {
+    transform: translate(2%, -18%) rotate(-3deg) scale(1.14);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  38% {
+    transform: translate(0, -26%) rotate(-1deg) scale(1.18);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  46% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  52% {
+    transform: translate(0, 2%) rotate(0deg) scale(1.03, 0.9);
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  58%, 64% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  80% { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate(-8%, -60%) rotate(8deg) scale(1.26);
+  }
+}
+@keyframes seal-press-shadow {
+  0% { opacity: 0; transform: scale(1.7); animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+  30% { opacity: 0.2; transform: scale(1.3); animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  38% { opacity: 0.16; transform: scale(1.38); animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+  46%, 64% { opacity: 0.5; transform: scale(1); animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  100% { opacity: 0; transform: scale(1.7); }
+}
+
+/* The page takes the hit at contact: a small dip, then back. */
+@keyframes seal-thump {
+  0%, 46% { transform: none; animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1); }
+  49% { transform: translateY(3px) scale(0.997); animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  60%, 100% { transform: none; }
+}
+.seal-page.is-pressing { animation: seal-thump var(--dur-press) both; }
+
+/* The ring and the before line give way to the seal and the after lines
+   as the press lifts. */
+@keyframes seal-out {
+  0%, 62% { opacity: 1; }
+  66%, 100% { opacity: 0; }
+}
+@keyframes seal-in {
+  0%, 63% { opacity: 0; }
+  64%, 100% { opacity: 1; }
+}
+@keyframes seal-words-in {
+  0%, 66% { opacity: 0; }
+  82%, 100% { opacity: 1; }
+}
+.seal-page.is-pressing .seal-page__blind { animation: seal-out var(--dur-press) both; }
+.seal-page.is-pressing .seal-page__before { animation: seal-out var(--dur-press) both; }
+.seal-page.is-pressing .seal-page__seal { animation: seal-in var(--dur-press) both; }
+.seal-page.is-pressing .seal-page__after { animation: seal-words-in var(--dur-press) both; }
+
+/* Fresh from the press the foil catches the light once, the same band a
+   turning page throws (Cover.css), sweeping across as the press lifts. */
+@keyframes seal-glint {
+  0%, 64% { background-position: 100% 0; }
+  100% { background-position: 0% 0; }
+}
+.seal-page.is-pressing .seal-page__seal .gold-seal__foil {
+  --shine: 1;
+  background-image: var(--foil-ramp);
+  background-size: 300% 100%;
+  will-change: transform;
+  animation: seal-glint var(--dur-press) linear both;
+}
+
+@keyframes seal-endorse-write {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+.seal-page__endorse.is-writing { animation: seal-endorse-write 620ms cubic-bezier(0.45, 0, 0.55, 1) calc(var(--dur-press) * 0.8) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .seal-press { display: none; }
+  .seal-press__tool, .seal-press__shadow,
+  .seal-page.is-pressing,
+  .seal-page.is-pressing .seal-page__blind,
+  .seal-page.is-pressing .seal-page__seal,
+  .seal-page.is-pressing .seal-page__seal .gold-seal__foil,
+  .seal-page.is-pressing .seal-page__after,
+  .seal-page__endorse.is-writing { animation: none; }
+  .seal-page.is-pressing .seal-page__blind,
+  .seal-page.is-pressing .seal-page__before { visibility: hidden; animation: none; }
+}
+
+@media (forced-colors: active) {
+  .seal-page__endorse { forced-color-adjust: none; color: CanvasText; }
+}

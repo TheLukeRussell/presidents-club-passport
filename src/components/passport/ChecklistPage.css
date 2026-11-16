@@ -1,0 +1,140 @@
+/* The President’s Club checklist, page 7. Printed on the same security
+   paper as the activity pages (VisaPage.css): the heading and the count,
+   five rows that each turn to their page, and a foot that holds either a
+   short note or the QUALIFIED stamp. */
+
+/* The count sits at the end of the heading's last line. */
+.checklist__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; column-gap: var(--space-md); }
+.checklist__title {
+  font-size: var(--text-2xl);
+  font-weight: var(--display-weight);
+  line-height: 1.02;
+  text-transform: uppercase;
+}
+.checklist__count {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  font-size: var(--text-lg);
+  color: var(--color-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.checklist__list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-rule);
+}
+.checklist__list > li { display: grid; border-bottom: 1px solid var(--color-rule); }
+
+/* A row: the tick, the name with what it takes under it, progress, and an
+   arrow, since a tap turns to that page. */
+.checklist__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 48px;
+  padding: var(--space-2xs);
+  border: 0;
+  border-radius: var(--radius-input);
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-micro) var(--ease-out);
+}
+@media (hover: hover) {
+  .checklist__row:hover { background: color-mix(in srgb, var(--color-ink) 5%, transparent); }
+  .checklist__row:hover .checklist__go { stroke: var(--color-ink); }
+}
+.checklist__row:focus-visible { outline: 2px solid var(--color-focus); outline-offset: -2px; }
+
+.checklist__tick {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1.5px dashed var(--color-muted);
+  border-radius: 50%;
+}
+.checklist__tick svg { width: 20px; height: 20px; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.is-met .checklist__tick { border: 0; background: var(--color-stamp-1); }
+.is-met .checklist__tick svg { stroke: var(--color-page); }
+.is-lost .checklist__tick { border-color: var(--color-miss); }
+.is-lost .checklist__tick svg { stroke: var(--color-miss); }
+
+.checklist__what { display: grid; gap: var(--space-3xs); min-width: 0; }
+.checklist__name { font-weight: 700; line-height: 1.25; }
+.checklist__takes { font-size: var(--text-sm); line-height: 1.3; color: var(--color-muted); text-wrap: pretty; }
+
+.checklist__progress {
+  max-width: 5.5em;
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  line-height: 1.15;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.is-met .checklist__progress { color: var(--color-stamp-1); }
+.is-lost .checklist__progress { color: var(--color-miss); }
+
+.checklist__go { width: 16px; height: 16px; fill: none; stroke: var(--color-muted); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* The note and the stamp stacked in one cell, so it's as tall as the stamp
+   whichever one shows. */
+.checklist__foot { display: grid; }
+.checklist__foot > * { grid-area: 1 / 1; }
+.checklist__note { display: grid; gap: var(--space-3xs); align-self: start; max-width: 40ch; text-wrap: pretty; }
+.checklist__note-head {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  font-size: var(--text-xl);
+  line-height: 1.05;
+}
+.checklist__note.is-lost .checklist__note-head { color: var(--color-miss); }
+
+/* The entry stamp, in the navy stamp ink, struck at a slant. */
+.checklist__stamp {
+  justify-self: center;
+  width: min(100% - var(--space-lg), 280px);
+  height: auto;
+  margin-block: var(--space-xs);
+  color: var(--color-stamp-2);
+  transform: rotate(-6deg);
+}
+.checklist__stamp.is-waiting { visibility: hidden; }
+.checklist__stamp-heavy, .checklist__stamp-light { fill: none; stroke: currentColor; }
+.checklist__stamp-heavy { stroke-width: 5; }
+.checklist__stamp-light { stroke-width: 2; }
+.checklist__stamp text { fill: currentColor; font-family: var(--font-display); font-weight: var(--display-weight); }
+.checklist__stamp-small { font-size: 15px; }
+.checklist__stamp-big { font-size: 54px; }
+
+/* It lands once, right after the gold seal on page 8 lifts: down from a
+   little above the page, a touch of give, then still. */
+@keyframes checklist-stamp-in {
+  0% { opacity: 0; transform: rotate(-6deg) scale(1.3); animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+  60% { opacity: 1; transform: rotate(-6deg) scale(0.97); animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1); }
+  100% { opacity: 1; transform: rotate(-6deg) scale(1); }
+}
+.checklist__stamp.is-landing { animation: checklist-stamp-in 360ms both; }
+
+@media (max-width: 40rem) {
+  .checklist__row { gap: var(--space-xs); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .checklist__row { transition: none; }
+  .checklist__stamp.is-landing { animation: none; }
+}
+
+@media (forced-colors: active) {
+  .checklist__tick { forced-color-adjust: none; border-color: CanvasText; }
+  .is-met .checklist__tick { background: CanvasText; }
+  .is-met .checklist__tick svg { stroke: Canvas; }
+  .is-lost .checklist__tick svg { stroke: CanvasText; }
+  .checklist__stamp { forced-color-adjust: none; color: CanvasText; }
+}

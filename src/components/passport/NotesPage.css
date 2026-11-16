@@ -1,5 +1,5 @@
-/* Inside cover: three rules as a real numbered list, then a key that uses
-   the same slot styles the visa pages do. */
+/* Inside cover: the five minimums as a little table, three short notes on
+   how stamps count, then a key of the three things you'll see on the pages. */
 
 /* The laminate runs all the way down to the page number, not just under the
    key, so the whole page catches the light. */
@@ -12,59 +12,86 @@
   text-transform: uppercase;
 }
 
+.notes__lead { max-width: 40ch; text-wrap: pretty; }
+
+/* Name on the left, what it takes on the right, a hairline under each. */
+.notes__minimums { display: grid; margin: 0; border-top: 1px solid var(--color-rule); }
+.notes__minimums div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-md);
+  padding: var(--space-3xs) 0;
+  border-bottom: 1px solid var(--color-rule);
+  line-height: 1.35;
+}
+.notes__minimums dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  white-space: nowrap;
+}
+
 .notes__rules {
   display: grid;
+  gap: var(--space-2xs);
+  margin: 0;
+  padding: 0 0 0 var(--space-md);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+.notes__rules li { max-width: 52ch; }
+.notes__rules li::marker { color: var(--color-muted); }
+
+.notes__key {
+  display: grid;
+  gap: var(--space-xs);
+  margin-top: auto;
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-rule);
+}
+.notes__key-title { font-weight: 700; }
+.notes__key-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-sm);
   margin: 0;
   padding: 0;
   list-style: none;
-  counter-reset: rule;
 }
-.notes__rules li {
-  counter-increment: rule;
-  display: grid;
-  grid-template-columns: var(--space-xl) minmax(0, 1fr);
-  max-width: 48ch;
-}
-.notes__rules li::before {
-  content: counter(rule);
-  font-family: var(--font-display);
-  font-weight: var(--display-weight);
-  font-size: var(--text-2xl);
-  line-height: 1;
-  color: var(--color-field);
-}
-
-.notes__key {
-  display: grid;
-  gap: var(--space-sm);
-  padding-top: var(--space-md);
-  border-top: 1px solid var(--color-rule);
-}
-.notes__key-title { font-weight: 700; }
-.notes__key-list { display: grid; gap: var(--space-sm); margin: 0; padding: 0; list-style: none; }
 .notes__key-list li {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-md);
+  gap: var(--space-2xs);
+  justify-items: center;
+  text-align: center;
   font-size: var(--text-sm);
+  line-height: 1.3;
 }
 
 /* Each swatch is a card of plain paper, so the laminate runs round it and
-   never under the red Missed, which only just clears AA on bare paper. */
+   never under it. */
 .notes__swatch {
   display: grid;
   place-items: center;
+  width: 100%;
   min-height: 56px;
+  padding: var(--space-2xs);
   border: 1px dashed transparent;
   border-radius: var(--radius-card);
   background: var(--color-page);
   font-family: var(--font-display);
   font-weight: var(--display-weight);
-  font-size: var(--text-lg);
-  line-height: 1;
+  line-height: 1.1;
+  text-align: center;
 }
-.notes__swatch--stamp { border: 3px double var(--color-stamp-2); color: var(--color-stamp-2); transform: rotate(-3deg); }
-.notes__swatch--missed { border-color: var(--color-miss); color: var(--color-miss); }
-.notes__swatch--upcoming { border-color: var(--color-muted); }
+.notes__swatch--stamp {
+  border: 3px double var(--color-stamp-2);
+  color: var(--color-stamp-2);
+  font-size: var(--text-lg);
+  transform: rotate(-3deg);
+}
+.notes__swatch--needed { border-color: var(--color-muted); color: var(--color-muted); font-size: var(--text-sm); }
+/* No outline round the seal, not even the see-through one the others start
+   with, which high contrast mode would draw like a Still needed slot. */
+.notes__swatch--seal { border: 0; }
+.notes__swatch--seal .gold-seal { --seal-size: 48px; }
