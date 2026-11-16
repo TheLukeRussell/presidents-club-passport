@@ -266,7 +266,8 @@ test('the demo flow works end to end', async ({ page }, info) => {
   )
 
   // Quota brings the seal press down on page 8, and the gold seal is there
-  // as it lifts. The checklist facing it gets its QUALIFIED stamp.
+  // as it lifts. That's the fifth minimum, so a beat later the book turns to
+  // the front cover and celebrates there.
   const quota = recordButton(page, 'Quota')
   await expect(quota).toHaveAccessibleDescription('Gold seal')
   await quota.click()
@@ -278,18 +279,27 @@ test('the demo flow works end to end', async ({ page }, info) => {
   await expect(page.locator('.seal-press')).toHaveCount(0, { timeout: 5000 })
   await expect(quota).toHaveAttribute('aria-disabled', 'true')
   await expect(quota).toHaveAccessibleDescription('Already recorded for Hannah. Reset the demo to run it again.')
+
+  // All five met: the book turns itself to the cover, the President's Club
+  // seal drops in with its burst, and the status line says why. Then it
+  // settles with the seal pressed in.
+  await expect(page).toHaveURL(/#\/passport\/hannah-kowalski$/, { timeout: 6000 })
+  const cover = shown(page).locator('.cover')
+  await expect(cover).toHaveClass(/is-celebrating/)
+  await expect(cover.locator('.seal-burst')).toHaveCount(1)
+  await expect(cover.getByRole('status')).toHaveText('Hannah Kowalski met all five minimums. The President’s Club seal is on the cover.')
+  await expect(cover).not.toHaveClass(/is-celebrating/, { timeout: 5000 })
+  await expect(cover.locator('.seal-burst')).toHaveCount(0)
+  await expect(shown(page).locator('.cover')).toHaveClass(/is-sealed/)
+  await expect(shown(page).locator('.cover__seal')).toHaveClass(/gold-seal--club/)
+  await expect(shown(page).getByRole('img', { name: 'President’s Club seal: all five minimums met' })).toBeVisible()
+
+  // The checklist has its QUALIFIED stamp.
   await page.goto('./#/passport/hannah-kowalski?page=7')
   await still(page)
   await expect(checklist.locator('.checklist__count')).toHaveText('5 of 5 met')
   await expect(checklist.getByRole('img', { name: 'Qualified for President’s Club 2027, 17 JUN 2027' })).toBeVisible()
-  await expect(checklist.getByRole('button', { name: 'Sales growth quota: Achieved, met. Go to page 8' })).toBeVisible()
-
-  // All five met, so the President's Club seal is pressed into the cover.
-  await page.goto('./#/passport/hannah-kowalski')
-  await still(page)
-  await expect(shown(page).locator('.cover')).toHaveClass(/is-sealed/)
-  await expect(shown(page).locator('.cover__seal')).toHaveClass(/gold-seal--club/)
-  await expect(shown(page).getByRole('img', { name: 'President’s Club seal: all five minimums met' })).toBeVisible()
+  await expect(checklist.getByRole('button', { name: 'Sales growth quota: Achieved. Go to page 8' })).toBeVisible()
 
   // And the data page says she's in.
   await page.goto('./#/passport/hannah-kowalski?page=2')

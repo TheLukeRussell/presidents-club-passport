@@ -8,7 +8,7 @@ import { pageForActivity } from '../../lib/book'
 import { stampDate } from '../../lib/format'
 import { lineMessage, progressLabel, quotaWhen } from '../../lib/messages'
 import type { Rep } from '../../lib/model'
-import type { Context, Progress, RepStats } from '../../lib/rules'
+import { countingStamps, type Context, type Progress, type RepStats } from '../../lib/rules'
 import { Page } from './Page'
 import './VisaPage.css'
 import './ChecklistPage.css'
@@ -51,8 +51,7 @@ const keepTogether = (text: string) => text.replace(/(\d) of (\d)/, '$1\u00a0of\
 function qualifiedOn(stats: RepStats): string {
   return ACTIVITIES.map((a) => {
     const p = stats.progress[a]
-    const counting = a === 'training' ? p.stamps.filter((s) => s.format === 'in person') : p.stamps
-    return counting[p.minimum - 1]?.date ?? ''
+    return countingStamps(a, p.stamps)[p.minimum - 1]?.date ?? ''
   }).reduce((latest, date) => (date > latest ? date : latest), '')
 }
 

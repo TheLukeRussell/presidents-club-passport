@@ -126,6 +126,11 @@ export function PassportScreen() {
   // whichever page of the spread comes first. When the page is already
   // showing (quota's, next to the checklist on a spread), focus goes there now.
   const focusPage = useRef<number | null>(null)
+  const takeFocusPage = useCallback(() => {
+    const page = focusPage.current
+    focusPage.current = null
+    return page
+  }, [])
   const goToPage = (target: number) => {
     if (viewForPage(target, spread) !== view) {
       focusPage.current = target
@@ -260,7 +265,7 @@ export function PassportScreen() {
           }
         }}
       >
-        <Book view={view} spread={spread} reduced={reduced} render={render} focusPage={focusPage} />
+        <Book view={view} spread={spread} reduced={reduced} render={render} takeFocusPage={takeFocusPage} />
       </div>
 
       {/* At either end the button stays focusable (aria-disabled, not

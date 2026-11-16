@@ -55,19 +55,19 @@
   left: 50%;
   width: calc(10px * var(--size));
   height: calc(10px * var(--size));
-  margin: calc(-5px * var(--size)) 0 0 calc(-5px * var(--size));
   background: var(--color-foil);
   opacity: 0;
   animation: burst-fleck 1800ms cubic-bezier(0.12, 0.8, 0.3, 1) both;
 }
 .seal-burst__fleck.is-bright { background: var(--color-foil-glint); }
-.seal-burst__fleck.is-long { width: calc(4px * var(--size)); height: calc(14px * var(--size)); margin: calc(-7px * var(--size)) 0 0 calc(-2px * var(--size)); }
+.seal-burst__fleck.is-long { width: calc(4px * var(--size)); height: calc(14px * var(--size)); }
+/* Each fleck starts centred on the seal (the -50% pair), then flies. */
 @keyframes burst-fleck {
-  0% { transform: translate(0, 0) rotate(45deg) scale(0.4); opacity: 0; }
+  0% { transform: translate(-50%, -50%) rotate(45deg) scale(0.4); opacity: 0; }
   6% { opacity: 1; }
   65% { opacity: 1; }
   100% {
-    transform: translate(calc(var(--dx) * var(--cover-seal)), calc(var(--dy) * var(--cover-seal))) rotate(calc(45deg + var(--spin))) scale(1);
+    transform: translate(-50%, -50%) translate(calc(var(--dx) * var(--cover-seal)), calc(var(--dy) * var(--cover-seal))) rotate(calc(45deg + var(--spin))) scale(1);
     opacity: 0;
   }
 }
