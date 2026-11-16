@@ -117,6 +117,11 @@ export function parseDate(value: unknown): string {
 
 const text = (value: unknown) => String(value ?? '').trim()
 
+// A cell that's meant to be empty, whatever someone typed to say so. People
+// copy a dash from an example, or write n/a, rather than leave it blank.
+const EMPTY = new Set(['-', '–', '—', 'n/a', 'na', 'none', 'blank', '(leave blank)'])
+const optional = (value: unknown) => (EMPTY.has(text(value).toLowerCase()) ? '' : text(value))
+
 export function toRepRow(raw: Record<string, unknown>): RepRow | string {
   const rep_email = text(raw.rep_email).toLowerCase()
   if (!rep_email.includes('@')) return 'no email'
@@ -142,7 +147,7 @@ export function toStampRow(raw: Record<string, unknown>): StampRow | string {
   const format = activity === 'fair' || activity === 'club' ? 'in person' : activity === 'training' ? parseFormat(raw.format) || 'virtual' : ''
   const event = text(raw.event) || (activity === 'quota' ? 'Sales growth quota' : '')
   if (!event) return 'no event name'
-  return { rep_email, activity, event, supplier: text(raw.supplier), date, format, location: text(raw.location) }
+  return { rep_email, activity, event, supplier: optional(raw.supplier), date, format, location: optional(raw.location) }
 }
 
 export interface Cleaned {
@@ -183,6 +188,8 @@ export function cleanData(reps: Record<string, unknown>[], stamps: Record<string
     else repRows.set(row.rep_email, row)
   })
   const seen = new Map<string, { at: number; supplier: string }>()
+  // Quota is one result per rep, however the row is worded or dated.
+  const quotaRow = new Map<string, number>()
   const stampRows: StampRow[] = []
   stamps.forEach((raw, i) => {
     const at = sheetRow(raw, i)
@@ -201,6 +208,15 @@ export function cleanData(reps: Record<string, unknown>[], stamps: Record<string
           : `Stamps row ${at}: the same stamp is already on row ${first.at}`,
       )
     }
+    if (row.activity === 'quota') {
+      const earlier = quotaRow.get(row.rep_email)
+      if (earlier !== undefined) return void problems.push(`Stamps row ${at}: ${row.rep_email} already has a Quota row on row ${earlier}, so this one’s left out`)
+      quotaRow.set(row.rep_email, at)
+    }
+    // Kept, since it may be right (someone who moved over from another
+    // team), but worth a look: the instructions say not to log these.
+    const start = repRows.get(row.rep_email)!.start_date
+    if (start && row.date < start) problems.push(`Stamps row ${at}: dated ${row.date}, before ${row.rep_email} started on ${start}, so check it`)
     if (row.activity === 'training' && !parseFormat(raw.format)) {
       const typed = text(raw.format)
       problems.push(`Stamps row ${at}: ${typed ? `no format it knows (“${typed}”)` : 'no format'}, so it counts as virtual`)

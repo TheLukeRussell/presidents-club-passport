@@ -285,9 +285,12 @@ describe('cleanData', () => {
       'Reps row 6: no name',
       'Stamps row 3: ghost@example.com isn’t on the Reps tab',
       'Stamps row 4: the same stamp is already on row 2',
+      'Stamps row 5: dated 2027-03-17, before ben@example.com started on 2027-06-01, so check it',
       'Stamps row 5: no format, so it counts as virtual',
       'Stamps row 6: no activity it knows (“lunch”)',
       'Stamps row 7: no date it can read (“soon”)',
+      'Stamps row 8: dated 2027-04-21, before ben@example.com started on 2027-06-01, so check it',
+      'Stamps row 9: dated 2027-05-19, before ben@example.com started on 2027-06-01, so check it',
       'Stamps row 9: no format it knows (“hybrid”), so it counts as virtual',
     ])
   })
@@ -360,5 +363,41 @@ describe('cleanData', () => {
       ['club', 'Club Express Fall', '2026-10-14', 'in person'],
       ['quota', 'Sales growth quota', '2027-06-30', ''],
     ])
+  })
+})
+
+// The mistakes a first-time coordinator made filling in the template from
+// its instructions: dashes for empty cells, quota logged twice, and a stamp
+// from before a new hire started.
+describe('cleanData catches what a newcomer gets wrong', () => {
+  const reps = [
+    { rep_email: 'ana@example.com', rep_name: 'Ana', team: 'POSB', start_date: '' },
+    { rep_email: 'ben@example.com', rep_name: 'Ben', team: 'Federal', start_date: '3/2/2027' },
+  ]
+  const stamps = [
+    { rep_email: 'ana@example.com', activity: 'Supplier fair', event: 'Spring Supplier Fair', supplier: '-', date: '3/4/2027', format: '-', location: 'Chicago' },
+    { rep_email: 'ana@example.com', activity: 'Hub course', event: 'Meraki fundamentals', supplier: 'Cisco', date: '3/20/2027', format: '', location: '—' },
+    { rep_email: 'ana@example.com', activity: 'Quota', event: '', supplier: 'n/a', date: '6/30/2027', format: '', location: '' },
+    { rep_email: 'ana@example.com', activity: 'Quota', event: 'FY27 sales growth quota', supplier: '', date: '6/30/2027', format: '', location: '' },
+    { rep_email: 'ben@example.com', activity: 'Supplier training', event: 'HPE Aruba partner training', supplier: 'HPE Aruba', date: '10/7/2026', format: 'Virtual', location: '' },
+  ]
+  const { data, problems } = cleanData(reps, stamps)
+
+  it('reads a dash, a long dash or n/a as an empty cell', () => {
+    expect(data.stamps.slice(0, 3).map((s) => [s.supplier, s.location])).toEqual([
+      ['', 'Chicago'],
+      ['Cisco', ''],
+      ['', ''],
+    ])
+  })
+
+  it('keeps one quota row per rep, however the second is worded', () => {
+    expect(data.stamps.filter((s) => s.activity === 'quota')).toHaveLength(1)
+    expect(problems).toContain('Stamps row 5: ana@example.com already has a Quota row on row 4, so this one’s left out')
+  })
+
+  it('keeps a stamp from before a rep started, but flags it', () => {
+    expect(data.stamps.some((s) => s.rep_email === 'ben@example.com')).toBe(true)
+    expect(problems).toContain('Stamps row 6: dated 2026-10-07, before ben@example.com started on 2027-03-02, so check it')
   })
 })
