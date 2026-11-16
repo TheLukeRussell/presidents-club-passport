@@ -1,61 +1,48 @@
-// The one place that knows where attendance data comes from. Today it's a
-// static JSON file next to the app. To use a real API later, change this file
-// and nothing else: the UI only ever sees AttendanceRow[].
+// The one place that knows where the data comes from. Today it's a static
+// JSON file next to the app, shaped like the tracking sheet's two tabs. To
+// read the sheet straight from SharePoint later, change this file and nothing
+// else: the UI only ever sees PassportData.
 
-import type { AttendanceRow } from './types'
+import { cleanData } from '../lib/sheet'
+import type { PassportData } from './types'
 
-const DATA_PATH = 'data/attendance.json'
+const DATA_PATH = 'data/passport.json'
+// `npm run import` writes a real export here. It's gitignored, and only the
+// dev server will read it (add ?data=local before the #), so real names can
+// be checked locally without ever going near the public site.
+const LOCAL_PATH = 'data/local.json'
 
-// BASE_URL is "/" in dev and "/supplier-training-passport/" on Pages, so the
-// same relative path works in both.
-export const dataUrl = `${import.meta.env.BASE_URL}${DATA_PATH}`
+const useLocal = () => import.meta.env.DEV && new URLSearchParams(window.location.search).get('data') === 'local'
+
+export const dataPath = () => (useLocal() ? LOCAL_PATH : DATA_PATH)
 
 export class DataError extends Error {}
 
-// Exports love to send "TRUE", "yes" or 1 instead of true. Accept the usual
-// suspects so a spreadsheet export doesn't zero out everybody's rate.
-function toBool(value: unknown): boolean {
-  if (typeof value === 'boolean') return value
-  if (typeof value === 'number') return value !== 0
-  return ['true', 'yes', 'y', '1', 'x'].includes(String(value).trim().toLowerCase())
-}
+const list = (value: unknown) => (Array.isArray(value) ? value.filter((row): row is Record<string, unknown> => typeof row === 'object' && row !== null) : null)
 
-function toRow(raw: Record<string, unknown>): AttendanceRow {
-  const format = String(raw.format ?? '').toLowerCase().includes('person') ? 'in person' : 'virtual'
-  return {
-    rep_email: String(raw.rep_email ?? '').trim(),
-    rep_name: String(raw.rep_name ?? '').trim(),
-    team: String(raw.team ?? '').trim(),
-    training_id: String(raw.training_id ?? '').trim(),
-    supplier: String(raw.supplier ?? '').trim(),
-    title: String(raw.title ?? '').trim(),
-    date: String(raw.date ?? '').slice(0, 10),
-    format,
-    invited: toBool(raw.invited),
-    attended: toBool(raw.attended),
-  }
-}
-
-export async function loadAttendance(signal?: AbortSignal): Promise<AttendanceRow[]> {
+export async function loadData(signal?: AbortSignal): Promise<PassportData> {
+  const path = dataPath()
   let response: Response
   try {
-    response = await fetch(dataUrl, { signal, cache: 'no-cache' })
+    // BASE_URL is "/" in dev and the repo's path on Pages, so this works in both.
+    response = await fetch(`${import.meta.env.BASE_URL}${path}`, { signal, cache: 'no-cache' })
   } catch (error) {
     if (signal?.aborted) throw error
-    throw new DataError("The attendance file didn’t come back. Check the connection and try again.")
+    throw new DataError('The passport data didn’t come back. Check the connection and try again.')
   }
   if (!response.ok) {
-    throw new DataError(`The server answered ${response.status} when asked for ${DATA_PATH}.`)
+    throw new DataError(`The server answered ${response.status} when asked for ${path}.`)
   }
   let body: unknown
   try {
     body = await response.json()
   } catch {
-    throw new DataError(`${DATA_PATH} isn’t valid JSON, so there’s nothing to show.`)
+    throw new DataError(`${path} isn’t valid JSON, so there’s nothing to show.`)
   }
-  if (!Array.isArray(body)) throw new DataError(`${DATA_PATH} should be a list of rows.`)
-  return body
-    .filter((raw): raw is Record<string, unknown> => typeof raw === 'object' && raw !== null)
-    .map(toRow)
-    .filter((row) => row.rep_email && row.training_id && /^\d{4}-\d{2}-\d{2}$/.test(row.date))
+  const reps = list((body as { reps?: unknown } | null)?.reps)
+  const stamps = list((body as { stamps?: unknown } | null)?.stamps)
+  if (!reps || !stamps) throw new DataError(`${path} should have a list of reps and a list of stamps.`)
+  const { data, problems } = cleanData(reps, stamps)
+  if (problems.length && import.meta.env.DEV) console.warn(`${path}: ${problems.length} rows skipped or fixed\n${problems.join('\n')}`)
+  return data
 }

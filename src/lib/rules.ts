@@ -1,141 +1,100 @@
-// The passport rules: what counts as recorded, a rep's rate, how many more
-// trainings they need, and their streak. Pure functions, no React in here.
+// The qualifying rules: what each stamp counts toward, which minimums a rep
+// has met, and which ones can't be met any more. Pure functions, no React.
 
-import { entryFor, type Model, type Rep, type Training } from './model'
+import { ACTIVITIES, CLUB_EXPRESS, MINIMUMS, QUOTA_DATE, type Activity } from '../config'
+import { stampsOf, type Model, type Rep, type Stamp } from './model'
 
 export interface Context {
   today: string // YYYY-MM-DD
-  todayRecorded: boolean // has today's training been recorded yet?
-  line: number // e.g. 0.75
 }
 
-export type SlotState = 'stamped' | 'missed' | 'today' | 'upcoming' | 'not-invited'
-
-export type ToLine =
-  | { kind: 'above'; onLine: boolean }
-  | { kind: 'needs'; n: number }
-  | { kind: 'out-of-reach'; left: number }
+export interface Progress {
+  activity: Activity
+  stamps: Stamp[] // this activity's stamps, in date order
+  counted: number // what counts toward the minimum: in-person sessions for trainings
+  minimum: number
+  met: boolean
+  short: number // how many more it takes, 0 once met
+  // False once the minimum can't be met this year: a Club Express event
+  // that's been and gone without them, or quota after the year closes.
+  reachable: boolean
+}
 
 export interface RepStats {
-  attended: number
-  recorded: number // invited trainings that are already recorded
-  rate: number | null // null until something is recorded
-  left: number // invited trainings still to come this year
-  toLine: ToLine
-  streak: number
-  next: Training | null
+  progress: Record<Activity, Progress>
+  met: number // minimums met, 0 to 5
+  total: number // every stamp, the gold seal included
+  activitiesDone: boolean // all four besides quota
+  qualified: boolean // all five
+  outOfReach: Activity[]
 }
 
-// Only count trainings that already happened. Upcoming ones shouldn't hurt
-// anybody's rate. Today's training counts once the demo records it.
-export function isRecorded(training: Training, ctx: Context): boolean {
-  if (training.date < ctx.today) return true
-  return training.date === ctx.today && ctx.todayRecorded
+// Stamps dated after today haven't happened yet, so they don't count.
+export function countedStamps(model: Model, rep: Rep, ctx: Context): Stamp[] {
+  return stampsOf(model, rep).filter((stamp) => stamp.date <= ctx.today)
 }
 
-export function slotState(model: Model, rep: Rep, training: Training, ctx: Context): SlotState {
-  const entry = entryFor(model, rep, training.id)
-  if (!entry.invited) return 'not-invited'
-  if (isRecorded(training, ctx)) return entry.attended ? 'stamped' : 'missed'
-  return training.date === ctx.today ? 'today' : 'upcoming'
+// The Club Express events that have been and gone without this rep. A stamp
+// matches an event by its name or its date, so "Club Express Fall" typed
+// without the comma still counts. Someone who started after an event missed
+// it too: the rule is both.
+const squash = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, '')
+export function clubEventsMissed(stamps: Stamp[], ctx: Context): string[] {
+  return CLUB_EXPRESS.filter(
+    (event) =>
+      event.date < ctx.today &&
+      !stamps.some((s) => s.activity === 'club' && (s.date === event.date || squash(s.event) === squash(event.title))),
+  ).map((event) => event.title)
 }
 
-export function rateOf(attended: number, recorded: number): number | null {
-  return recorded === 0 ? null : attended / recorded
-}
-
-// At or over the line counts as making it. 0.75 exactly is in.
-export function meetsLine(rate: number | null, line: number): boolean {
-  return rate !== null && rate >= line
-}
-
-// Attend the next N: the smallest N where (attended + N) / (recorded + N)
-// reaches the line, assuming they attend every one of those N. If N is bigger
-// than the trainings left this year, the line is out of reach for now.
-export function attendNext(attended: number, recorded: number, left: number, line: number): ToLine {
-  const rate = rateOf(attended, recorded)
-  if (meetsLine(rate, line)) return { kind: 'above', onLine: rate === line }
-  for (let n = 1; n <= left; n++) {
-    if ((attended + n) / (recorded + n) >= line) return { kind: 'needs', n }
-  }
-  return { kind: 'out-of-reach', left }
-}
-
-// For reps already above the line: how many of the next trainings they could
-// skip and still be at or over it. Never more than what's left this year.
-export function cushionOf(attended: number, recorded: number, left: number, line: number): number {
-  let skips = 0
-  while (skips < left && attended / (recorded + skips + 1) >= line) skips++
-  return skips
-}
-
-// The best rate a rep can still finish the year on, if they attend every
-// training left. Used to say how close an out-of-reach rep can get.
-export function bestRateOf(attended: number, recorded: number, left: number): number | null {
-  return rateOf(attended + left, recorded + left)
-}
-
-// Streak is the run of attended trainings counting back from the most recent
-// recorded one. Trainings a rep wasn't invited to don't break it.
-export function streakOf(model: Model, rep: Rep, ctx: Context): number {
-  let streak = 0
-  for (let i = model.trainings.length - 1; i >= 0; i--) {
-    const training = model.trainings[i]
-    if (!isRecorded(training, ctx)) continue
-    const entry = entryFor(model, rep, training.id)
-    if (!entry.invited) continue
-    if (!entry.attended) break
-    streak++
-  }
-  return streak
-}
-
-// Attended and recorded counts, over whichever trainings `counts` says to use.
-// Ranking calls this twice: once for now, once for "before the last training".
-export function tally(model: Model, rep: Rep, counts: (t: Training) => boolean) {
-  let attended = 0
-  let recorded = 0
-  for (const training of model.trainings) {
-    if (!counts(training)) continue
-    const entry = entryFor(model, rep, training.id)
-    if (!entry.invited) continue
-    recorded++
-    if (entry.attended) attended++
-  }
-  return { attended, recorded }
+function progressOf(activity: Activity, all: Stamp[], ctx: Context): Progress {
+  const stamps = all.filter((s) => s.activity === activity)
+  const counted = activity === 'training' ? stamps.filter((s) => s.format === 'in person').length : stamps.length
+  const minimum = MINIMUMS[activity]
+  const met = counted >= minimum
+  let reachable = true
+  if (!met && activity === 'club') reachable = clubEventsMissed(all, ctx).length === 0
+  if (!met && ctx.today > QUOTA_DATE) reachable = false
+  return { activity, stamps, counted, minimum, met, short: Math.max(minimum - counted, 0), reachable }
 }
 
 export function repStats(model: Model, rep: Rep, ctx: Context): RepStats {
-  const { attended, recorded } = tally(model, rep, (t) => isRecorded(t, ctx))
-  let left = 0
-  let next: Training | null = null
-  for (const training of model.trainings) {
-    if (isRecorded(training, ctx)) continue
-    if (!entryFor(model, rep, training.id).invited) continue
-    left++
-    next ??= training
-  }
+  const all = countedStamps(model, rep, ctx)
+  const progress = Object.fromEntries(ACTIVITIES.map((a) => [a, progressOf(a, all, ctx)])) as Record<Activity, Progress>
+  const met = ACTIVITIES.filter((a) => progress[a].met).length
+  const activitiesDone = ACTIVITIES.every((a) => a === 'quota' || progress[a].met)
   return {
-    attended,
-    recorded,
-    rate: rateOf(attended, recorded),
-    left,
-    toLine: attendNext(attended, recorded, left, ctx.line),
-    streak: streakOf(model, rep, ctx),
-    next,
+    progress,
+    met,
+    total: all.length,
+    activitiesDone,
+    qualified: met === ACTIVITIES.length,
+    outOfReach: ACTIVITIES.filter((a) => !progress[a].reachable),
   }
 }
 
-// Show the rate as a whole percent, rounded down, so nobody looks like they
-// made the line when they're a hair short (74.9% shows as 74%, not 75%).
-export function percentOf(rate: number): number {
-  return Math.floor(rate * 100 + 1e-9)
+// What's still missing, in activity order. Quota is in here too: it's the
+// one a rep can't schedule.
+export function stillNeeded(stats: RepStats): Progress[] {
+  return ACTIVITIES.map((a) => stats.progress[a]).filter((p) => !p.met)
 }
 
-export function recordedTrainings(model: Model, ctx: Context): Training[] {
-  return model.trainings.filter((t) => isRecorded(t, ctx))
+export type Status = 'qualified' | 'on-track' | 'out-of-reach' | 'to-go'
+
+// One word for where a rep stands. On track means every activity is done and
+// only the quota result is left to come.
+export function statusOf(stats: RepStats): Status {
+  if (stats.qualified) return 'qualified'
+  if (stats.outOfReach.length) return 'out-of-reach'
+  if (stats.activitiesDone) return 'on-track'
+  return 'to-go'
 }
 
-export function todaysTrainings(model: Model, ctx: Context): Training[] {
-  return model.trainings.filter((t) => t.date === ctx.today)
+// The latest day anyone earned a stamp, up to today. Standings measures
+// "change" against the board as it stood the day before.
+export function lastStampDay(model: Model, ctx: Context): string | null {
+  for (let i = model.stamps.length - 1; i >= 0; i--) {
+    if (model.stamps[i].date <= ctx.today) return model.stamps[i].date
+  }
+  return null
 }

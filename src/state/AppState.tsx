@@ -1,13 +1,13 @@
-// App-wide state: loads the data, layers the demo's changes on top, and hands
-// the passport and standings everything they need. Screens read it with useApp().
+// App-wide state: loads the data, layers the demo's recordings on top, and
+// hands the passport and standings everything they need. Screens read it with useApp().
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { DEMO_REP, DEMO_SEED, DEMO_TODAY, DEMO_TODAY_SHARE, LINE } from '../config'
-import { DataError, loadAttendance } from '../data/source'
-import type { AttendanceRow } from '../data/types'
+import { ACTIVITIES, DEMO_REP, DEMO_SEED, DEMO_SHARE, DEMO_TODAY, type Activity } from '../config'
+import { DataError, loadData } from '../data/source'
+import type { PassportData } from '../data/types'
 import type { Span } from '../lib/board'
-import { pickDefaultRep, pickTodayAttendees } from '../lib/demo'
-import { buildModel, findRep, withAttendance, type Model, type Rep, type Training } from '../lib/model'
+import { demoStamp, demoStamps, GROUP_EVENTS, pickAttendees, pickDefaultRep } from '../lib/demo'
+import { buildModel, findRep, withStamps, type Model, type Rep } from '../lib/model'
 import { standings, type StandingRow } from '../lib/ranking'
 import type { Context } from '../lib/rules'
 import { readSaved, writeSaved, type SavedDemo } from './storage'
@@ -15,8 +15,8 @@ import { readSaved, writeSaved, type SavedDemo } from './storage'
 export type LoadStatus = 'loading' | 'error' | 'empty' | 'ready'
 export type Preview = 'live' | 'loading' | 'empty' | 'error'
 
-// The board as it stood just before today was recorded, so Standings can
-// slide each row from where it was: the order, and who was above the line.
+// The board as it stood just before something was recorded, so Standings can
+// slide each row from where it was: the order, and who had qualified.
 export interface SlideFrom {
   order: string[]
   above: ReadonlySet<string>
@@ -35,8 +35,13 @@ interface Ready {
   ctx: Context
   board: StandingRow[]
   viewAs: Rep
-  today: Training | undefined
 }
+
+// Why Record can't run for a rep right now, or null when it can.
+export type RecordBlock = 'recorded' | 'has-it' | 'nothing-left' | null
+
+// A stamp that still has its moment to play, as `${email}|${activity}`.
+export const landingKey = (email: string, activity: Activity) => `${email}|${activity}`
 
 interface AppValue {
   status: LoadStatus
@@ -44,10 +49,11 @@ interface AppValue {
   retry: () => void
   ready: Ready | null
   setViewAs: (repId: string) => void
-  // Marks today's attendance. Pass the rep whose passport is open so they
-  // get the stamp; with no rep it uses whoever you're viewing as.
-  record: (repId?: string) => void
-  recorded: boolean
+  // Stamps one activity, dated today. Pass the rep whose passport is open so
+  // they get the stamp; with no rep it uses whoever you're viewing as.
+  record: (activity: Activity, repId?: string) => void
+  recordBlock: (activity: Activity, repId?: string) => RecordBlock
+  recorded: ReadonlySet<Activity> // activities recorded at least once
   reset: () => void
   undoReset: () => void
   canUndo: boolean
@@ -55,7 +61,7 @@ interface AppValue {
   slideFrom: SlideFrom | null
   clearSlide: () => void
   landing: ReadonlySet<string>
-  landed: (email: string) => void
+  landed: (key: string) => void
   openedGaps: OpenedGaps
   openGap: (key: string, span: Span) => void
   closeGaps: () => void
@@ -66,9 +72,10 @@ interface AppValue {
 const AppContext = createContext<AppValue | null>(null)
 
 const UNDO_MS = 10000
+const CTX: Context = { today: DEMO_TODAY }
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [rows, setRows] = useState<AttendanceRow[] | null>(null)
+  const [data, setData] = useState<PassportData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [preview, setPreview] = useState<Preview>('live')
@@ -84,11 +91,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const controller = new AbortController()
-    loadAttendance(controller.signal)
-      .then(setRows)
+    loadData(controller.signal)
+      .then(setData)
       .catch((err: unknown) => {
         if (controller.signal.aborted) return
-        setError(err instanceof DataError ? err.message : 'Something went wrong reading the attendance data.')
+        setError(err instanceof DataError ? err.message : 'Something went wrong reading the passport data.')
       })
     return () => controller.abort()
   }, [attempt])
@@ -106,42 +113,70 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer)
   }, [undo])
 
-  const baseModel = useMemo(() => (rows ? buildModel(rows) : null), [rows])
+  const baseModel = useMemo(() => (data ? buildModel(data) : null), [data])
 
   const ready = useMemo<Ready | null>(() => {
-    if (!baseModel || baseModel.reps.length === 0 || baseModel.trainings.length === 0) return null
-    const today = baseModel.trainings.find((t) => t.date === DEMO_TODAY)
-    // Only trust the saved recording if it still matches today's training.
-    const recording = saved.recorded && today && saved.recorded.trainingId === today.id ? saved.recorded : null
-    const model = recording ? withAttendance(baseModel, recording.trainingId, recording.emails) : baseModel
-    const ctx: Context = { today: DEMO_TODAY, todayRecorded: Boolean(recording), line: LINE }
-    const baseCtx: Context = { ...ctx, todayRecorded: false }
-    const viewAs = (saved.viewAs && findRep(baseModel, saved.viewAs)) || pickDefaultRep(baseModel, baseCtx, DEMO_REP) || baseModel.reps[0]
-    return { model, ctx, board: standings(model, ctx), viewAs, today }
+    if (!baseModel || baseModel.reps.length === 0) return null
+    // Each activity's recording, in order. Emails no longer in the data just
+    // drop out, and a rep who already has the stamp doesn't get it twice.
+    let model = baseModel
+    for (const activity of ACTIVITIES) {
+      const emails = saved.recorded?.[activity]
+      if (emails?.length) model = withStamps(model, demoStamps(baseModel, activity, emails, CTX))
+    }
+    const viewAs = (saved.viewAs && findRep(baseModel, saved.viewAs)) || pickDefaultRep(baseModel, CTX, DEMO_REP) || baseModel.reps[0]
+    return { model, ctx: CTX, board: standings(model, CTX), viewAs }
   }, [baseModel, saved])
 
   const status: LoadStatus =
-    preview !== 'live' ? preview : error ? 'error' : !rows ? 'loading' : ready ? 'ready' : 'empty'
+    preview !== 'live' ? preview : error ? 'error' : !data ? 'loading' : ready ? 'ready' : 'empty'
 
   const setViewAs = useCallback((repId: string) => setSaved((s) => ({ ...s, viewAs: repId })), [])
 
-  const record = useCallback((repId?: string) => {
-    if (!ready || !ready.today || ready.ctx.todayRecorded || !baseModel) return
-    // The rep being recorded is the one whose passport is open, when there
-    // is one. They become the rep you're viewing as, so Standings highlights
-    // the same person whose stamp just landed.
-    const rep = (repId && findRep(baseModel, repId)) || ready.viewAs
-    const emails = pickTodayAttendees(baseModel, ready.today, rep, DEMO_TODAY_SHARE, DEMO_SEED)
-    // Remember the board order from right before, so Standings can slide
-    // each row from where it was to where it lands.
-    setSlideFrom({
-      order: ready.board.map((row) => row.rep.id),
-      above: new Set(ready.board.filter((row) => row.above).map((row) => row.rep.id)),
-    })
-    setLanding(new Set(emails))
-    setUndo(null)
-    setSaved((s) => ({ ...s, viewAs: rep.id, recorded: { trainingId: ready.today!.id, emails } }))
-  }, [ready, baseModel])
+  // A group event (a training, a fair, Club Express) is one event today, so
+  // it records once. A Hub course or the quota is one rep's own, so each rep
+  // can get one.
+  const recordBlock = useCallback(
+    (activity: Activity, repId?: string): RecordBlock => {
+      if (!ready || !baseModel) return 'nothing-left'
+      const rep = (repId && findRep(baseModel, repId)) || ready.viewAs
+      const emails = saved.recorded?.[activity] ?? []
+      if (GROUP_EVENTS.includes(activity) ? emails.length > 0 : emails.includes(rep.email)) return 'recorded'
+      if (demoStamp(ready.model, rep, activity, CTX)) return null
+      return activity === 'hub' ? 'nothing-left' : 'has-it'
+    },
+    [ready, baseModel, saved],
+  )
+
+  const record = useCallback(
+    (activity: Activity, repId?: string) => {
+      if (!ready || !baseModel || recordBlock(activity, repId)) return
+      // The rep being recorded is the one whose passport is open, when there
+      // is one. They become the rep you're viewing as, so Standings highlights
+      // the same person whose stamp just landed.
+      const rep = (repId && findRep(baseModel, repId)) || ready.viewAs
+      const emails = pickAttendees(ready.model, activity, rep, DEMO_SHARE, DEMO_SEED, CTX)
+      // Remember the board order from right before, so Standings can slide
+      // each row from where it was to where it lands.
+      setSlideFrom({
+        order: ready.board.map((row) => row.rep.id),
+        above: new Set(ready.board.filter((row) => row.above).map((row) => row.rep.id)),
+      })
+      setLanding((current) => new Set([...current, ...emails.map((email) => landingKey(email, activity))]))
+      setUndo(null)
+      setSaved((s) => ({
+        ...s,
+        viewAs: rep.id,
+        recorded: { ...s.recorded, [activity]: [...(s.recorded?.[activity] ?? []), ...emails] },
+      }))
+    },
+    [ready, baseModel, recordBlock],
+  )
+
+  const recorded = useMemo(
+    () => new Set(ACTIVITIES.filter((a) => (saved.recorded?.[a]?.length ?? 0) > 0)) as ReadonlySet<Activity>,
+    [saved],
+  )
 
   // Reset keeps a copy of what it wiped so Undo can put it back.
   // A second press while Undo is still up has nothing new to wipe, so it
@@ -173,11 +208,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
   const closeGaps = useCallback(() => setOpenedGaps({ key: '', spans: [] }), [])
 
-  const landed = useCallback((email: string) => {
+  const landed = useCallback((key: string) => {
     setLanding((current) => {
-      if (!current.has(email)) return current
+      if (!current.has(key)) return current
       const next = new Set(current)
-      next.delete(email)
+      next.delete(key)
       return next
     })
   }, [])
@@ -187,14 +222,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     error: preview === 'error' ? 'This is a preview of the error state. Nothing is actually broken.' : error,
     retry: () => {
       setPreview('live')
-      setRows(null)
+      setData(null)
       setError(null)
       setAttempt((n) => n + 1)
     },
     ready: status === 'ready' ? ready : null,
     setViewAs,
     record,
-    recorded: Boolean(ready?.ctx.todayRecorded),
+    recordBlock,
+    recorded,
     reset,
     undoReset,
     canUndo: undo !== null,

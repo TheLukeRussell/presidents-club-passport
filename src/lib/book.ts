@@ -1,13 +1,15 @@
-// Page math for the passport book. Page 0 is the front cover, then six
-// inside pages (the inside cover, the data page, four visa pages, one per
-// quarter), then page 7, the back cover.
+// Page math for the passport book. Page 0 is the front cover, then eight
+// inside pages (the inside cover, the data page, a page for each of the four
+// activities, the checklist and the quota seal), then page 9, the back cover.
 // On a phone you see one page at a time. On a wide screen you see spreads:
-// the closed front, pages 1 and 2, 3 and 4, 5 and 6, then the closed back.
+// the closed front, pages 1 and 2, 3 and 4, 5 and 6, 7 and 8, then the closed back.
 
-import type { Training } from './model'
+import type { Activity } from '../config'
 
-export const PAGE_COUNT = 6 // inside pages
+export const PAGE_COUNT = 8 // inside pages
 export const DATA_PAGE = 2
+export const CHECKLIST_PAGE = 7
+export const SEAL_PAGE = 8
 export const BACK_COVER = PAGE_COUNT + 1
 // How long a page turn takes, matching --dur-turn.
 export const TURN_MS = 640
@@ -15,27 +17,28 @@ export const TURN_MS = 640
 export interface PageInfo {
   page: number
   name: string
-  months?: [number, number, number]
+  activity?: Activity
 }
 
 export const PAGES: PageInfo[] = [
   { page: 1, name: 'Inside cover' },
   { page: 2, name: 'Data page' },
-  { page: 3, name: 'Visas, January to March', months: [1, 2, 3] },
-  { page: 4, name: 'Visas, April to June', months: [4, 5, 6] },
-  { page: 5, name: 'Visas, July to September', months: [7, 8, 9] },
-  { page: 6, name: 'Visas, October to December', months: [10, 11, 12] },
+  { page: 3, name: 'Supplier trainings', activity: 'training' },
+  { page: 4, name: 'Supplier fairs', activity: 'fair' },
+  { page: 5, name: 'Hub training', activity: 'hub' },
+  { page: 6, name: 'Club Express', activity: 'club' },
+  { page: 7, name: 'President’s Club checklist' },
+  { page: 8, name: 'Quota seal', activity: 'quota' },
 ]
 
 export const ALL_PAGES = Array.from({ length: BACK_COVER + 1 }, (_, i) => i)
 
-// Which visa page a training lives on: one page per quarter.
-export function pageForTraining(training: Training): number {
-  const month = Number(training.date.slice(5, 7))
-  return 2 + Math.ceil(month / 3)
+// The page each activity's stamps live on. Quota's gold seal has its own page.
+export function pageForActivity(activity: Activity): number {
+  return PAGES.find((p) => p.activity === activity)!.page
 }
 
-// Anything that isn't a whole page number from 1 to 7 means the front cover.
+// Anything that isn't a whole page number from 1 to the back cover means the front cover.
 export function parsePage(value: string | null): number {
   const n = Number(value)
   return Number.isInteger(n) && n >= 1 && n <= BACK_COVER ? n : 0
@@ -67,7 +70,7 @@ export function pageForView(view: number, spread: boolean): number {
 
 // The pages showing in a view. Spreads are [left, right]. The closed book on
 // a wide screen is [null, 0] at the front (the cover on the right) and
-// [7, null] at the back (the back cover on the left).
+// [9, null] at the back (the back cover on the left).
 export function pagesInView(view: number, spread: boolean): (number | null)[] {
   if (!spread) return [view]
   if (view === 0) return [null, 0]

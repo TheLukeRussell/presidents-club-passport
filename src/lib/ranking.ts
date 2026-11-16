@@ -1,128 +1,113 @@
-// Standings math: rank reps by rate, share ranks on ties, work out how far
-// each rep moved since the last training, and the figures at the top.
+// Standings math: rank reps by minimums met, then by stamps, share ranks on
+// ties, work out how far each rep moved since the last day anyone earned a
+// stamp, and the figures at the top.
 
-import { MIN_RECORDED } from '../config'
 import type { Model, Rep } from './model'
-import { isRecorded, meetsLine, recordedTrainings, repStats, tally, type Context, type RepStats } from './rules'
+import { lastStampDay, repStats, statusOf, type Context, type RepStats, type Status } from './rules'
 
-export interface Tally {
-  attended: number
-  recorded: number
+export interface Score {
+  met: number
+  total: number
 }
 
-// Compare two rates without dividing. 7/9 vs 14/18 come out exactly equal
-// this way, where floats could disagree in the last digit.
-export function compareRates(a: Tally, b: Tally): number {
-  return b.attended * a.recorded - a.attended * b.recorded
+// More minimums met ranks higher. Between two reps who've met the same
+// number, more stamps (extras included) ranks higher.
+export function compareScores(a: Score, b: Score): number {
+  return b.met - a.met || b.total - a.total
 }
 
-// Rank everyone with at least `min` trainings recorded. Ties share a rank
-// (1, 2, 2, 4) so nobody drops a spot because of the alphabet. Anyone short
-// of that gets null and sits at the bottom, unranked.
-export function rankTallies(items: { id: string; name: string; tally: Tally }[], min = MIN_RECORDED): Map<string, number | null> {
-  const ranked = items
-    .filter((item) => item.tally.recorded >= Math.max(min, 1))
-    .sort((a, b) => compareRates(a.tally, b.tally) || a.name.localeCompare(b.name))
-  const ranks = new Map<string, number | null>()
-  ranked.forEach((item, index) => {
-    const prev = ranked[index - 1]
-    const tied = prev && compareRates(prev.tally, item.tally) === 0
+// Ties share a rank (1, 2, 2, 4) so nobody drops a spot because of the alphabet.
+export function rankScores(items: { id: string; name: string; score: Score }[]): Map<string, number> {
+  const sorted = [...items].sort((a, b) => compareScores(a.score, b.score) || a.name.localeCompare(b.name))
+  const ranks = new Map<string, number>()
+  sorted.forEach((item, index) => {
+    const prev = sorted[index - 1]
+    const tied = prev && compareScores(prev.score, item.score) === 0
     ranks.set(item.id, tied ? ranks.get(prev.id)! : index + 1)
   })
-  for (const item of items) if (!ranks.has(item.id)) ranks.set(item.id, null)
   return ranks
 }
 
-export type Change = { kind: 'up' | 'down'; places: number } | { kind: 'same' } | { kind: 'new' } | { kind: 'none' }
+export type Change = { kind: 'up' | 'down'; places: number } | { kind: 'same' } | { kind: 'none' }
 
 export interface StandingRow {
   rep: Rep
   stats: RepStats
-  rank: number | null
+  status: Status
+  rank: number
   tied: boolean // shares its rank with someone, anywhere on the full board
   change: Change
-  above: boolean // ranked and at or over the line
+  above: boolean // qualified: all five minimums met
 }
 
-function ranksFor(model: Model, counts: (trainingId: string) => boolean) {
-  return rankTallies(
-    model.reps.map((rep) => ({
-      id: rep.id,
-      name: rep.name,
-      tally: tally(model, rep, (t) => counts(t.id)),
-    })),
-  )
-}
-
-// "Change since the last training" means: rank now, versus rank if the most
-// recent recorded training hadn't happened yet. Positive places means up.
-export function changeFor(now: number | null, before: number | null, hasHistory: boolean): Change {
-  if (!hasHistory) return { kind: 'none' }
-  if (now === null) return { kind: 'none' }
-  if (before === null) return { kind: 'new' }
+// "Change" means: rank now, versus rank the day before the last day anyone
+// earned a stamp. After the demo records something, that's today.
+export function changeFor(now: number, before: number | undefined, hasHistory: boolean): Change {
+  if (!hasHistory || before === undefined) return { kind: 'none' }
   if (now === before) return { kind: 'same' }
   return now < before ? { kind: 'up', places: before - now } : { kind: 'down', places: now - before }
 }
 
+export function dayBefore(date: string): string {
+  const [y, m, d] = date.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d) - 86400000).toISOString().slice(0, 10)
+}
+
+function ranksAt(model: Model, ctx: Context) {
+  const stats = new Map(model.reps.map((rep) => [rep.id, repStats(model, rep, ctx)]))
+  const ranks = rankScores(model.reps.map((rep) => ({ id: rep.id, name: rep.name, score: stats.get(rep.id)! })))
+  return { stats, ranks }
+}
+
 export function standings(model: Model, ctx: Context): StandingRow[] {
-  const recorded = recordedTrainings(model, ctx)
-  const latest = recorded.at(-1)
-  const nowRanks = ranksFor(model, (id) => recorded.some((t) => t.id === id))
-  const beforeRanks = ranksFor(model, (id) => id !== latest?.id && recorded.some((t) => t.id === id))
-  const hasHistory = recorded.length > 1
+  const { stats, ranks } = ranksAt(model, ctx)
+  const latest = lastStampDay(model, ctx)
+  const earlier = latest ? { today: dayBefore(latest) } : null
+  const hasHistory = Boolean(earlier && lastStampDay(model, earlier))
+  const before = hasHistory && earlier ? ranksAt(model, earlier).ranks : new Map<string, number>()
 
   // How many reps hold each rank, so a tie reads the same on a team filter
   // as it does on the full board.
   const holders = new Map<number, number>()
-  for (const rank of nowRanks.values()) if (rank !== null) holders.set(rank, (holders.get(rank) ?? 0) + 1)
+  for (const rank of ranks.values()) holders.set(rank, (holders.get(rank) ?? 0) + 1)
 
   const rows = model.reps.map((rep): StandingRow => {
-    const stats = repStats(model, rep, ctx)
-    const rank = nowRanks.get(rep.id) ?? null
+    const repStats = stats.get(rep.id)!
+    const rank = ranks.get(rep.id)!
     return {
       rep,
-      stats,
+      stats: repStats,
+      status: statusOf(repStats),
       rank,
-      tied: rank !== null && holders.get(rank)! > 1,
-      change: changeFor(rank, beforeRanks.get(rep.id) ?? null, hasHistory),
-      // Unranked reps don't count toward the line on the board, even at 1 of 1.
-      above: rank !== null && meetsLine(stats.rate, ctx.line),
+      tied: holders.get(rank)! > 1,
+      change: changeFor(rank, before.get(rep.id), hasHistory),
+      above: repStats.qualified,
     }
   })
-
-  // Ranked reps first by rank, then alphabetical inside a tie. Unranked last.
-  return rows.sort((a, b) => {
-    if (a.rank === null && b.rank === null) return a.rep.name.localeCompare(b.rep.name)
-    if (a.rank === null) return 1
-    if (b.rank === null) return -1
-    return a.rank - b.rank || a.rep.name.localeCompare(b.rep.name)
-  })
+  return rows.sort((a, b) => a.rank - b.rank || a.rep.name.localeCompare(b.rep.name))
 }
 
 export interface Figures {
-  above: number
-  ranked: number
-  averageRate: number | null
-  held: number
-  total: number
+  qualified: number
+  activitiesDone: number // every activity done, quota or not
+  averageStamps: number | null
+  reps: number
 }
 
 // The three numbers at the top of Standings, for whatever rows are showing.
-// Only ranked reps count toward the line and the average.
-export function figuresFor(rows: StandingRow[], model: Model, ctx: Context): Figures {
-  const ranked = rows.filter((row) => row.rank !== null)
-  const sum = ranked.reduce((total, row) => total + (row.stats.rate ?? 0), 0)
+export function figuresFor(rows: StandingRow[]): Figures {
+  const sum = rows.reduce((total, row) => total + row.stats.total, 0)
   return {
-    above: rows.filter((row) => row.above).length,
-    ranked: ranked.length,
-    averageRate: ranked.length ? sum / ranked.length : null,
-    held: model.trainings.filter((t) => isRecorded(t, ctx)).length,
-    total: model.trainings.length,
+    qualified: rows.filter((row) => row.above).length,
+    activitiesDone: rows.filter((row) => row.stats.activitiesDone).length,
+    averageStamps: rows.length ? sum / rows.length : null,
+    reps: rows.length,
   }
 }
 
 // Where the President's Club line falls in a sorted board: the index of the
-// first row below it. Unranked reps count as below.
+// first rep who hasn't qualified. Qualified reps always sort first, since
+// five met beats anything less.
 export function lineIndex(rows: StandingRow[]): number {
   const index = rows.findIndex((row) => !row.above)
   return index === -1 ? rows.length : index

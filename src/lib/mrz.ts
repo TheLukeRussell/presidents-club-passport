@@ -1,13 +1,13 @@
 // The machine-readable strip at the bottom of the data page. It follows the
 // real passport layout (two lines of 44 characters, ICAO 9303 style) but packs
-// in the rep's training stats instead of a birth date and nationality.
+// in the rep's President's Club stats instead of a birth date and nationality.
 
 export interface MrzInput {
   name: string
   team: string
-  attended: number
-  recorded: number
-  percent: number | null
+  met: number // minimums met, 0 to 5
+  stamps: number
+  quota: boolean
   rank: number | null
   issue: string // YYYY-MM-DD
   expiry: string // YYYY-MM-DD
@@ -64,19 +64,19 @@ export function mrzLines(input: MrzInput): [string, string] {
   const parts = input.name.trim().split(/\s+/)
   const surname = clean(parts.at(-1) ?? '')
   const given = clean(parts.slice(0, -1).join(' '))
-  const line1 = pad(`P<STP${surname}<<${given}`, LINE_LENGTH)
+  const line1 = pad(`P<PCP${surname}<<${given}`, LINE_LENGTH)
 
   // Document number: first initial plus surname, like HKOWALSKI.
   const docNumber = pad(clean((parts[0]?.[0] ?? '') + surname).replace(/</g, ''), 9)
   const team = pad(TEAM_CODES[input.team] ?? clean(input.team), 3)
   const issue = yymmdd(input.issue)
   const expiry = yymmdd(input.expiry)
-  // The "personal number" slot holds the stats: A attended, I invited,
-  // R rate as a percent, K rank. Unranked reps get filler for R and K. The
-  // rank gets three digits, so 293rd of 600 fits, and the slot comes out at
-  // exactly its 14 characters.
+  // The "personal number" slot holds the stats: M minimums met, S stamps,
+  // Q quota (1 once the gold seal is in), K rank. The rank gets three
+  // digits, so 293rd of 600 fits, and the slot comes out at exactly its 14
+  // characters.
   const stats = pad(
-    `A${digits(input.attended, 2)}I${digits(input.recorded, 2)}R${digits(input.percent, 3)}K${digits(input.rank, 3)}`,
+    `M${digits(input.met, 1)}S${digits(input.stamps, 2)}Q${input.quota ? 1 : 0}K${digits(input.rank, 3)}`,
     14,
   )
 

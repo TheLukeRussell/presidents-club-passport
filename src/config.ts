@@ -1,29 +1,59 @@
-// Every rule and knob for the passport lives here, so changing the line or the
-// demo date is a one-line edit. The data script imports this file too.
+// Every rule and knob for the passport lives here, so changing a minimum or
+// the demo date is a one-line edit. The data script imports this file too.
 
-// The President's Club line: the share of invited trainings a rep needs to attend.
-// This is a placeholder until leadership sets the real number.
-export const LINE = 0.75
+// The five things a rep does to qualify for President's Club. The order here
+// is the order they show up everywhere: the pages, the checklist, the board.
+export const ACTIVITIES = ['training', 'fair', 'hub', 'club', 'quota'] as const
+export type Activity = (typeof ACTIVITIES)[number]
 
-// Nobody gets a rank until this many of their trainings are recorded. One
-// or two is too few to mean anything: a new hire at 1 of 1 shouldn't tie
-// for first, and one at 0 of 1 shouldn't sit dead last.
-export const MIN_RECORDED = 3
+// What each one is called on the page.
+export const ACTIVITY_NAMES: Record<Activity, string> = {
+  training: 'Supplier trainings',
+  fair: 'Supplier fairs',
+  hub: 'Hub training',
+  club: 'Club Express',
+  quota: 'Sales growth quota',
+}
 
-// The demo pretends today is this date. It's a training day, so passports
-// show a mix of stamped, missed and upcoming slots.
+// The minimum for each, straight from the director's brief. Trainings count
+// in-person sessions only; virtual ones still earn a stamp.
+export const MINIMUMS: Record<Activity, number> = {
+  training: 4,
+  fair: 2,
+  hub: 2,
+  club: 2,
+  quota: 1,
+}
+
+// Stamp slots on each activity's page. Anything past these goes in the
+// page's "Also attended" list. Quota has its own seal page instead.
+export const SLOTS = { training: 4, fair: 2, hub: 2, club: 2 } as const
+export type SlotActivity = keyof typeof SLOTS
+
+// Club Express is two set events and a rep has to make both, so the passport
+// needs to know when they are: miss one that's passed and it's out of reach.
+export const CLUB_EXPRESS = [
+  { title: 'Club Express Fall', date: '2026-10-14' },
+  { title: 'Club Express Spring', date: '2027-06-17' },
+] as const
+
+// The program runs on the fiscal year, July to June. Quota results are known
+// once the year closes.
+export const PROGRAM_YEAR = 2027
+export const FISCAL_YEAR = 'FY27'
+export const ISSUE_DATE = '2026-07-01'
+export const EXPIRY_DATE = '2027-06-30'
+export const QUOTA_DATE = EXPIRY_DATE
+
+// The demo pretends today is this date: Club Express Spring in Greenville,
+// with a supplier fair and an in-person training the same day.
 export const DEMO_TODAY = '2027-06-17'
 
-export const PROGRAM_YEAR = 2027
-export const ISSUE_DATE = '2027-01-01'
-export const EXPIRY_DATE = '2027-12-31'
-
-// Teams are business units, each selling its own set of suppliers. In-person
-// trainings only invite the teams that sell that supplier.
+// Teams are business units, each selling its own set of suppliers.
 export const TEAMS = ['Communications', 'POSB', 'NetSec', 'Cisco', 'Federal'] as const
 
-// The suppliers running trainings this year. Keep them in this one array, and
-// add new ones at the end: a supplier's place in it picks its stamp.
+// Suppliers running trainings and Hub courses. Keep them in this one array,
+// and add new ones at the end: a supplier's place in it picks its stamp.
 export const SUPPLIERS = [
   'Zebra',
   'Honeywell',
@@ -48,20 +78,42 @@ export const SUPPLIERS = [
 export const BOARD = { fullUpTo: 25, top: 10, aroundLine: 2, aroundYou: 3, step: 50, minGap: 2 } as const
 
 // The demo opens as this rep when they're in the data. Otherwise it picks
-// someone who crosses the line today (see pickDefaultRep).
+// whoever is furthest from qualifying who could still get there today.
 export const DEMO_REP = 'hannah-kowalski'
 
-// When the demo records today's attendance, roughly this share of everyone
-// else invited to today's training gets marked attended.
-export const DEMO_TODAY_SHARE = 0.65
+// What the demo's Record buttons stamp, all dated DEMO_TODAY. The Hub course
+// is picked per rep (the first one in HUB_COURSES they haven't done).
+export const DEMO_EVENTS = {
+  training: { event: 'Pioneer solutions workshop', supplier: 'Pioneer', format: 'in person', location: 'Greenville' },
+  fair: { event: 'Summer Supplier Fair', supplier: '', format: 'in person', location: 'Greenville' },
+  club: { event: 'Club Express Spring', supplier: '', format: 'in person', location: 'Greenville' },
+  quota: { event: `${FISCAL_YEAR} sales growth quota`, supplier: '', format: '', location: '' },
+} as const
+
+// The supplier-hosted courses on the Hub. The sample data and the demo pick
+// from these.
+export const HUB_COURSES = [
+  { supplier: 'Zebra', event: 'Mobile computing essentials' },
+  { supplier: 'Cisco', event: 'Meraki fundamentals' },
+  { supplier: 'HPE Aruba', event: 'Instant On basics' },
+  { supplier: 'Honeywell', event: 'Scanning portfolio tour' },
+  { supplier: 'HP Poly', event: 'Video room design' },
+  { supplier: 'Extreme Networks', event: 'Fabric networking 101' },
+  { supplier: 'Panasonic', event: 'Toughbook lineup' },
+  { supplier: 'Juniper', event: 'Mist wireless overview' },
+] as const
+
+// When the demo records a group event (a training, a fair, Club Express),
+// roughly this share of everyone else who doesn't have it yet gets stamped too.
+export const DEMO_SHARE = 0.65
 
 // Seeds for anything random. Same seed, same sample data, every time.
 export const DATA_SEED = 2027
-// DEMO_SEED picks who else shows up today. With 1670 it's 40 of the 60
-// invited, nobody falls under the line, and the count goes up when Hannah
-// crosses instead of down.
-export const DEMO_SEED = 1670
+// DEMO_SEED picks who else shows up to today's events. With 96, Jordan,
+// Marcus and Priya make all three, and recording Club Express Spring takes
+// "Activities done" from 0 to 18 of 60.
+export const DEMO_SEED = 96
 
-// Key for demo changes in localStorage. A saved recording keeps the names of
-// who showed up, so bump this when DEMO_SEED changes or the old ones come back.
-export const STORAGE_KEY = 'stp-demo-v3'
+// Key for demo changes in localStorage. A saved recording keeps the emails of
+// who got stamped, so bump this when DEMO_SEED or the data changes.
+export const STORAGE_KEY = 'pcp-demo-v1'

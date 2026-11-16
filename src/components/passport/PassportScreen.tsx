@@ -1,24 +1,27 @@
 // The Passport screen: the book for one rep, the page controls under it, and
-// the training detail slip. The page lives in the URL (?page=4), so a link
-// can open straight to a visa page. The book can be picked up and tilted too
-// (see useTilt.ts).
+// the stamp detail slip. The page lives in the URL (?page=4), so a link can
+// open straight to an activity's page. The book can be picked up and tilted
+// too (see useTilt.ts).
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
-import { BACK_COVER, DATA_PAGE, pageForView, parsePage, viewCount, viewForPage, viewLabel } from '../../lib/book'
-import { findRep, type Training } from '../../lib/model'
-import { useApp } from '../../state/AppState'
+import { ACTIVITIES, type Activity } from '../../config'
+import { BACK_COVER, CHECKLIST_PAGE, DATA_PAGE, PAGES, SEAL_PAGE, pageForView, parsePage, viewCount, viewForPage, viewLabel } from '../../lib/book'
+import { findRep, type Stamp } from '../../lib/model'
+import { landingKey, useApp } from '../../state/AppState'
 import { useReducedMotion, useSpread } from '../../state/useMedia'
+import { ActivityPage } from './ActivityPage'
 import { BackCover } from './BackCover'
 import { Book } from './Book'
+import { ChecklistPage } from './ChecklistPage'
 import { Cover } from './Cover'
 import { DataPage } from './DataPage'
 import { NotesPage } from './NotesPage'
 import { PassportPicker } from './PassportPicker'
-import { SlotDetail } from './SlotDetail'
+import { SealPage } from './SealPage'
+import { StampDetail } from './StampDetail'
 import { isPinchZoomed, usePinchZoom } from './usePinchZoom'
 import { useTilt } from './useTilt'
-import { VisaPage } from './VisaPage'
 import './PassportScreen.css'
 
 // How far a finger has to travel sideways before it counts as a swipe.
@@ -34,19 +37,29 @@ export function PassportScreen() {
   const spread = useSpread()
   const reduced = useReducedMotion()
   const zoomed = usePinchZoom()
-  const [detail, setDetail] = useState<Training | null>(null)
+  const [detail, setDetail] = useState<Stamp | null>(null)
   const swipe = useRef<{ x: number; y: number; id: number } | null>(null)
   const swiped = useRef(false)
   const tilt = useTilt(reduced)
   const { ref: tiltRef, onPointerMove: onTiltMove, onLostPointerCapture: onTiltLost } = tilt
 
   const rep = findRep(model, repId)
-  // Stable, so the stamp moment's timer isn't restarted by every re-render.
+  // One per activity, and stable, so a stamp moment's timer isn't restarted
+  // by every re-render.
   const repEmail = rep?.email
   const { landed } = app
-  const onLanded = useCallback(() => {
-    if (repEmail) landed(repEmail)
-  }, [landed, repEmail])
+  const onLanded = useMemo(
+    () =>
+      Object.fromEntries(
+        ACTIVITIES.map((a) => [
+          a,
+          () => {
+            if (repEmail) landed(landingKey(repEmail, a))
+          },
+        ]),
+      ) as Record<Activity, () => void>,
+    [landed, repEmail],
+  )
   const page = parsePage(params.get('page'))
   const view = viewForPage(page, spread)
   const last = viewCount(spread) - 1
@@ -92,7 +105,7 @@ export function PassportScreen() {
           <h1 id="missing-title" className="passport-missing__title">
             No passport for “{repId}”
           </h1>
-          <p>That rep ID isn’t in the attendance data. It may have a typo, or the rep may not be in this export.</p>
+          <p>That rep ID isn’t in the passport data. It may have a typo, or the rep may not be on the sheet.</p>
           <p>
             <Link to="/standings">Find them on the standings</Link> or <Link to={`/passport/${viewAs.id}`}>open {viewAs.name}’s passport</Link>.
           </p>
@@ -102,23 +115,30 @@ export function PassportScreen() {
   }
 
   const row = board.find((r) => r.rep.id === rep.id)!
-  const rankedCount = board.filter((r) => r.rank !== null).length
-  const landing = app.landing.has(rep.email)
+  const { stats } = row
+  const landing = (activity: Activity) => app.landing.has(landingKey(rep.email, activity))
 
   const render = (p: number, still: boolean) => {
-    if (p === 0) return <Cover rep={rep} still={still} onOpen={() => goToView(viewForPage(DATA_PAGE, spread))} />
+    if (p === 0) return <Cover rep={rep} sealed={stats.progress.quota.met} still={still} onOpen={() => goToView(viewForPage(DATA_PAGE, spread))} />
     if (p === 1) return <NotesPage />
     if (p === BACK_COVER) return <BackCover rep={rep} still={still} onFront={() => goToView(0)} />
-    if (p === 2) return <DataPage rep={rep} row={row} rankedCount={rankedCount} ctx={ctx} />
+    if (p === DATA_PAGE) return <DataPage rep={rep} row={row} repCount={board.length} ctx={ctx} />
+    if (p === CHECKLIST_PAGE) {
+      return <ChecklistPage rep={rep} stats={stats} ctx={ctx} still={still} onGo={(target) => goToView(viewForPage(target, spread))} />
+    }
+    if (p === SEAL_PAGE) {
+      return <SealPage rep={rep} stats={stats} ctx={ctx} landing={landing('quota')} onLanded={onLanded.quota} still={still} />
+    }
+    const activity = PAGES[p - 1].activity as Exclude<Activity, 'quota'>
     return (
-      <VisaPage
+      <ActivityPage
         page={p}
-        model={model}
+        activity={activity}
         rep={rep}
+        stats={stats}
         ctx={ctx}
-        stats={row.stats}
-        landing={landing}
-        onLanded={onLanded}
+        landing={landing(activity)}
+        onLanded={onLanded[activity]}
         onOpen={setDetail}
         still={still}
       />
@@ -215,7 +235,7 @@ export function PassportScreen() {
         </button>
       </nav>
 
-      <SlotDetail training={detail} model={model} rep={rep} ctx={ctx} onClose={() => setDetail(null)} />
+      <StampDetail stamp={detail} model={model} rep={rep} onClose={() => setDetail(null)} />
     </div>
   )
 }

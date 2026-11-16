@@ -2,11 +2,12 @@
 // storage (private windows, locked-down work laptops) and throw on access,
 // so every read and write is wrapped and the app just runs in memory instead.
 
-import { STORAGE_KEY } from '../config'
+import { ACTIVITIES, STORAGE_KEY, type Activity } from '../config'
 
 export interface SavedDemo {
   viewAs?: string // rep id
-  recorded?: { trainingId: string; emails: string[] }
+  // Who the demo's Record stamped, by activity.
+  recorded?: Partial<Record<Activity, string[]>>
 }
 
 export function readSaved(): { saved: SavedDemo; ok: boolean } {
@@ -33,11 +34,13 @@ function clean(value: unknown): SavedDemo {
   const { viewAs, recorded } = value as Record<string, unknown>
   const out: SavedDemo = {}
   if (typeof viewAs === 'string') out.viewAs = viewAs
-  if (recorded && typeof recorded === 'object') {
-    const { trainingId, emails } = recorded as Record<string, unknown>
-    if (typeof trainingId === 'string' && Array.isArray(emails) && emails.every((e) => typeof e === 'string')) {
-      out.recorded = { trainingId, emails }
+  if (recorded && typeof recorded === 'object' && !Array.isArray(recorded)) {
+    const kept: Partial<Record<Activity, string[]>> = {}
+    for (const activity of ACTIVITIES) {
+      const emails = (recorded as Record<string, unknown>)[activity]
+      if (Array.isArray(emails) && emails.every((e) => typeof e === 'string')) kept[activity] = emails
     }
+    if (Object.keys(kept).length) out.recorded = kept
   }
   return out
 }
