@@ -49,6 +49,7 @@ export function NotesPage() {
           <li>Every supplier training earns a stamp. Only in-person ones count toward the {MINIMUMS.training}.</li>
           <li>Extras go in each page’s Also attended list.</li>
           <li>Quota is the gold seal. Results land {QUOTA_DAY}.</li>
+          <li>All five earns the seal on your cover.</li>
         </ul>
 
         <div className="notes__key">

@@ -120,7 +120,7 @@ export function PassportScreen() {
   const landing = (activity: Activity) => app.landing.has(landingKey(rep.email, activity))
 
   const render = (p: number, still: boolean) => {
-    if (p === 0) return <Cover rep={rep} sealed={stats.progress.quota.met} still={still} onOpen={() => goToView(viewForPage(DATA_PAGE, spread))} />
+    if (p === 0) return <Cover rep={rep} qualified={stats.qualified} still={still} onOpen={() => goToView(viewForPage(DATA_PAGE, spread))} />
     if (p === 1) return <NotesPage />
     if (p === BACK_COVER) return <BackCover rep={rep} still={still} onFront={() => goToView(0)} />
     if (p === DATA_PAGE) return <DataPage rep={rep} row={row} repCount={board.length} ctx={ctx} />

@@ -49,7 +49,9 @@
   align-content: center;
   gap: var(--space-lg);
 }
-.cover__seal { --seal-size: 80px; }
+/* Big enough to read as the reward for the whole passport, and to carry
+   its lettering. It scales with the cover so a small phone still fits. */
+.cover .cover__seal { --seal-size: clamp(104px, 40cqi, 172px); }
 
 .cover__year {
   font-family: var(--font-display);
@@ -210,7 +212,6 @@
   .cover__program { font-size: var(--text-md); }
   .cover__logo { width: 180px; }
   .cover__crest { gap: var(--space-md); }
-  .cover__seal { --seal-size: 64px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
