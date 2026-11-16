@@ -9,7 +9,7 @@ import type { Span } from '../lib/board'
 import { demoStamp, demoStamps, GROUP_EVENTS, landingKey, pickAttendees, pickDefaultRep } from '../lib/demo'
 import { buildModel, findRep, withStamps, type Model, type Rep } from '../lib/model'
 import { standings, type StandingRow } from '../lib/ranking'
-import type { Context } from '../lib/rules'
+import { repStats, type Context } from '../lib/rules'
 import { readSaved, writeSaved, type SavedDemo } from './storage'
 
 export type LoadStatus = 'loading' | 'error' | 'empty' | 'ready'
@@ -159,7 +159,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         order: ready.board.map((row) => row.rep.id),
         above: new Set(ready.board.filter((row) => row.above).map((row) => row.rep.id)),
       })
-      setLanding((current) => new Set([...current, ...emails.map((email) => landingKey(email, activity))]))
+      // Anyone this recording takes to all five also gets the cover's
+      // celebration, which plays once their stamp has landed.
+      const after = withStamps(ready.model, demoStamps(baseModel, activity, emails, CTX))
+      const qualified = emails.filter((email) => {
+        const r = after.reps.find((x) => x.email === email)
+        return r && !repStats(ready.model, r, CTX).qualified && repStats(after, r, CTX).qualified
+      })
+      setLanding(
+        (current) =>
+          new Set([...current, ...emails.map((email) => landingKey(email, activity)), ...qualified.map((email) => landingKey(email, 'qualified'))]),
+      )
       setUndo(null)
       setSaved((s) => ({
         ...s,

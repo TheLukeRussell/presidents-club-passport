@@ -1,0 +1,84 @@
+/* The burst under the cover seal when the fifth minimum lands. It sits on
+   the seal's spot, sized off --cover-seal (Cover.css), and starts at
+   --burst-at, the moment the falling seal touches the leather. Everything
+   here is transform and opacity on its own small layers. */
+
+.seal-burst {
+  --burst-at: 520ms;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* A ring of light pushing out across the leather. */
+.seal-burst__ring {
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--color-foil-glint);
+  border-radius: 50%;
+  opacity: 0;
+  animation: burst-ring 1000ms var(--burst-at) cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+/* A second, fainter wave just behind the first. */
+.seal-burst__ring--late { border-width: 1px; animation-delay: calc(var(--burst-at) + 220ms); animation-duration: 1300ms; }
+@keyframes burst-ring {
+  0% { transform: scale(0.7); opacity: 0.9; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+
+/* Short rays of gold light, flaring out and fading. */
+.seal-burst__rays {
+  position: absolute;
+  inset: -40%;
+  width: 180%;
+  height: 180%;
+  overflow: visible;
+  opacity: 0;
+  animation: burst-rays 1400ms var(--burst-at) cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.seal-burst__rays line {
+  stroke: var(--color-foil);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+@keyframes burst-rays {
+  0% { transform: scale(0.6) rotate(-8deg); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: scale(1.5) rotate(8deg); opacity: 0; }
+}
+
+/* Foil flecks, thrown out from under the seal, spinning as they go. */
+.seal-burst__fleck {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: calc(10px * var(--size));
+  height: calc(10px * var(--size));
+  margin: calc(-5px * var(--size)) 0 0 calc(-5px * var(--size));
+  background: var(--color-foil);
+  opacity: 0;
+  animation: burst-fleck 1800ms cubic-bezier(0.12, 0.8, 0.3, 1) both;
+}
+.seal-burst__fleck.is-bright { background: var(--color-foil-glint); }
+.seal-burst__fleck.is-long { width: calc(4px * var(--size)); height: calc(14px * var(--size)); margin: calc(-7px * var(--size)) 0 0 calc(-2px * var(--size)); }
+@keyframes burst-fleck {
+  0% { transform: translate(0, 0) rotate(45deg) scale(0.4); opacity: 0; }
+  6% { opacity: 1; }
+  65% { opacity: 1; }
+  100% {
+    transform: translate(calc(var(--dx) * var(--cover-seal)), calc(var(--dy) * var(--cover-seal))) rotate(calc(45deg + var(--spin))) scale(1);
+    opacity: 0;
+  }
+}
+
+/* The burst only exists with motion on (Cover.tsx skips it otherwise), but
+   if the setting changes mid-burst it just stops. */
+@media (prefers-reduced-motion: reduce) {
+  .seal-burst { display: none; }
+}
+
+/* High contrast keeps the seal and drops the light show. */
+@media (forced-colors: active) {
+  .seal-burst { display: none; }
+}

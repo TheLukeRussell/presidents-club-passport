@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { ACTIVITIES, type Activity } from '../../config'
-import { BACK_COVER, CHECKLIST_PAGE, DATA_PAGE, PAGES, SEAL_PAGE, pageForView, parsePage, viewCount, viewForPage, viewLabel } from '../../lib/book'
+import { BACK_COVER, CHECKLIST_PAGE, DATA_PAGE, PAGES, SEAL_PAGE, pageForActivity, pageForView, pagesInView, parsePage, viewCount, viewForPage, viewLabel } from '../../lib/book'
 import { findRep, type Stamp } from '../../lib/model'
 import { landingKey } from '../../lib/demo'
 import { useApp } from '../../state/AppState'
@@ -27,6 +27,9 @@ import './PassportScreen.css'
 
 // How far a finger has to travel sideways before it counts as a swipe.
 const SWIPE_PX = 48
+// After the last stamp of the five lands, a beat to read its endorsement
+// before the book turns to the cover for the celebration.
+const READ_MS = 1100
 // Places where the arrow keys move a text cursor, so they keep them.
 const TYPING = 'textarea, [contenteditable="true"], input:not([type="radio"], [type="checkbox"], [type="button"], [type="submit"], [type="reset"])'
 
@@ -99,6 +102,42 @@ export function PassportScreen() {
     return () => window.removeEventListener('keydown', onKey)
   }, [detail, goToView, view])
 
+  // A Record that met the fifth minimum leaves the cover's celebration to
+  // play. Once the stamp moment on the page in front of you has landed, the
+  // book turns to the front cover, and it plays there (Cover.tsx). Only a
+  // moment that's showing holds it back: a rep recorded from Standings gets
+  // the celebration as soon as their passport opens.
+  const celebrate = Boolean(repEmail && app.landing.has(landingKey(repEmail, 'qualified')))
+  const showing = pagesInView(view, spread)
+  const stampsPending = Boolean(
+    repEmail && ACTIVITIES.some((a) => app.landing.has(landingKey(repEmail, a)) && showing.includes(pageForActivity(a))),
+  )
+  const cheering = celebrate && !stampsPending
+  useEffect(() => {
+    if (!cheering || view === 0) return
+    const timer = window.setTimeout(() => goToView(0), reduced ? 0 : READ_MS)
+    return () => window.clearTimeout(timer)
+  }, [cheering, view, goToView, reduced])
+  const onCelebrated = useCallback(() => {
+    if (repEmail) landed(landingKey(repEmail, 'qualified'))
+  }, [landed, repEmail])
+
+  // A checklist row turns to its page and puts focus on that page, not on
+  // whichever page of the spread comes first. When the page is already
+  // showing (quota's, next to the checklist on a spread), focus goes there now.
+  const focusPage = useRef<number | null>(null)
+  const goToPage = (target: number) => {
+    if (viewForPage(target, spread) !== view) {
+      focusPage.current = target
+      goToView(viewForPage(target, spread))
+      return
+    }
+    const page = document.querySelector<HTMLElement>(`.book__slot .book__sheet > [data-folio="${target}"]`)
+    if (!page) return
+    page.tabIndex = -1
+    page.focus({ preventScroll: true })
+  }
+
   if (!rep) {
     return (
       <div className="container">
@@ -120,12 +159,30 @@ export function PassportScreen() {
   const landing = (activity: Activity) => app.landing.has(landingKey(rep.email, activity))
 
   const render = (p: number, still: boolean) => {
-    if (p === 0) return <Cover rep={rep} qualified={stats.qualified} still={still} onOpen={() => goToView(viewForPage(DATA_PAGE, spread))} />
+    if (p === 0) {
+      // Until the celebration plays, the cover keeps its blind ring, even on
+      // the turning leaf, so the seal arrives with the burst and not before.
+      const playing = cheering && !still
+      return (
+        <Cover
+          rep={rep}
+          qualified={stats.qualified && (!celebrate || playing)}
+          celebrating={playing}
+          onCelebrated={onCelebrated}
+          still={still}
+          onOpen={() => goToView(viewForPage(DATA_PAGE, spread))}
+        />
+      )
+    }
     if (p === 1) return <NotesPage />
     if (p === BACK_COVER) return <BackCover rep={rep} still={still} onFront={() => goToView(0)} />
     if (p === DATA_PAGE) return <DataPage rep={rep} row={row} repCount={board.length} ctx={ctx} />
     if (p === CHECKLIST_PAGE) {
-      return <ChecklistPage rep={rep} stats={stats} ctx={ctx} still={still} onGo={(target) => goToView(viewForPage(target, spread))} />
+      // On a spread the seal page sits beside the checklist, so while the seal
+      // is being pressed the checklist holds quota back. On a phone it never
+      // needs to: page 7 isn't showing during the press.
+      const holdQuota = landing('quota') && pagesInView(view, spread).includes(SEAL_PAGE)
+      return <ChecklistPage rep={rep} stats={stats} ctx={ctx} still={still} holdQuota={holdQuota} onGo={goToPage} />
     }
     if (p === SEAL_PAGE) {
       return <SealPage rep={rep} stats={stats} ctx={ctx} landing={landing('quota')} onLanded={onLanded.quota} still={still} />
@@ -203,7 +260,7 @@ export function PassportScreen() {
           }
         }}
       >
-        <Book view={view} spread={spread} reduced={reduced} render={render} />
+        <Book view={view} spread={spread} reduced={reduced} render={render} focusPage={focusPage} />
       </div>
 
       {/* At either end the button stays focusable (aria-disabled, not

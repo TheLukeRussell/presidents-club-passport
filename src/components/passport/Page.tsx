@@ -15,7 +15,7 @@ interface Props {
 
 export function Page({ kind, label, folio, runningHead, className, children }: Props) {
   return (
-    <section className={`page page--${kind}${className ? ` ${className}` : ''}`} aria-label={label}>
+    <section className={`page page--${kind}${className ? ` ${className}` : ''}`} aria-label={label} data-folio={folio}>
       <div className="page__body">{children}</div>
       {/* The section name rides in the foot beside the number, so nothing
           small sits on top of the page’s heading. */}

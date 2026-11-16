@@ -2,7 +2,7 @@
 // for; if that's a different view than the one showing, it turns a page to
 // get there (or just swaps, under reduced motion).
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { ALL_PAGES, TURN_MS, pagesInView, viewCount } from '../../lib/book'
 import './Book.css'
 
@@ -14,6 +14,9 @@ interface Props {
   // hidden sizer copies), so a page can hold off on its own animation, the
   // stamp, until the paper stops moving.
   render: (page: number, still: boolean) => ReactNode
+  // A page to put focus on when the next turn lands, instead of the first
+  // one showing: a checklist row asked for it. Read once, then cleared.
+  focusPage?: RefObject<number | null>
 }
 
 interface Turn {
@@ -24,7 +27,7 @@ interface Turn {
 
 const EASE = 'cubic-bezier(0.65, 0, 0.35, 1)'
 
-export function Book({ view, spread, reduced, render }: Props) {
+export function Book({ view, spread, reduced, render, focusPage }: Props) {
   const [settled, setSettled] = useState({ view, spread })
   const [pending, setTurn] = useState<Turn | null>(null)
   const leafRef = useRef<HTMLDivElement>(null)
@@ -84,13 +87,18 @@ export function Book({ view, spread, reduced, render }: Props) {
     const before = lastShown.current
     lastShown.current = settled
     if (before.view === settled.view || before.spread !== settled.spread) return
+    const wanted = focusPage?.current ?? null
+    if (focusPage) focusPage.current = null
     const active = document.activeElement
     if (active && active !== document.body) return
-    const page = bookRef.current?.querySelector<HTMLElement>(':scope > .book__slot > .book__sheet > *')
+    const sheets = ':scope > .book__slot > .book__sheet >'
+    const page =
+      (wanted !== null && bookRef.current?.querySelector<HTMLElement>(`${sheets} [data-folio="${wanted}"]`)) ||
+      bookRef.current?.querySelector<HTMLElement>(`${sheets} *`)
     if (!page) return
     page.tabIndex = -1
     page.focus({ preventScroll: true })
-  }, [settled])
+  }, [settled, focusPage])
 
   // Closed at the front, the cover sits on the right; closed at the back, the
   // back cover sits on the left. Book.css slides the book to centre either.

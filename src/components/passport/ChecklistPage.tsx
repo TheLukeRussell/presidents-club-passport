@@ -9,8 +9,6 @@ import { stampDate } from '../../lib/format'
 import { lineMessage, progressLabel, quotaWhen } from '../../lib/messages'
 import type { Rep } from '../../lib/model'
 import type { Context, Progress, RepStats } from '../../lib/rules'
-import { landingKey } from '../../lib/demo'
-import { useApp } from '../../state/AppState'
 import { Page } from './Page'
 import './VisaPage.css'
 import './ChecklistPage.css'
@@ -21,6 +19,8 @@ interface Props {
   ctx: Context
   onGo: (page: number) => void
   still: boolean
+  // The quota seal is being pressed on the page beside this one (a spread).
+  holdQuota: boolean
 }
 
 // What each minimum takes, under its name.
@@ -56,12 +56,11 @@ function qualifiedOn(stats: RepStats): string {
   }).reduce((latest, date) => (date > latest ? date : latest), '')
 }
 
-export function ChecklistPage({ rep, stats, ctx, onGo, still }: Props) {
-  // While the gold seal is still being pressed on page 8, this page shows
-  // quota as it was, so on a spread the tick and the QUALIFIED stamp don't
-  // give the moment away before the seal lifts.
-  const { landing } = useApp()
-  const holding = stats.progress.quota.met && landing.has(landingKey(rep.email, 'quota'))
+export function ChecklistPage({ stats, ctx, onGo, still, holdQuota }: Props) {
+  // While the gold seal is being pressed on page 8 beside it, this page shows
+  // quota as it was, so the tick and the QUALIFIED stamp don't give the
+  // moment away before the seal lifts.
+  const holding = stats.progress.quota.met && holdQuota
   const shownMet = (p: Progress) => p.met && !(holding && p.activity === 'quota')
   const qualified = stats.qualified && !holding
 
@@ -98,7 +97,8 @@ export function ChecklistPage({ rep, stats, ctx, onGo, still }: Props) {
           const lost = !done && !p.reachable
           const progress = done || !holding || activity !== 'quota' ? progressLabel(p) : 'Not yet'
           const page = pageForActivity(activity)
-          const state = done ? ', met' : lost ? ', out of reach' : ''
+          // Quota's progress already says Achieved, so it skips the ", met".
+          const state = done ? (activity === 'quota' ? '' : ', met') : lost ? ', out of reach' : ''
           return (
             <li key={activity}>
               <button

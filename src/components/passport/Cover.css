@@ -50,8 +50,39 @@
   gap: var(--space-lg);
 }
 /* Big enough to read as the reward for the whole passport, and to carry
-   its lettering. It scales with the cover so a small phone still fits. */
-.cover .cover__seal { --seal-size: clamp(104px, 40cqi, 172px); }
+   its lettering. It scales with the cover so a small phone still fits.
+   The burst under it (SealBurst.css) reads the same size. */
+.cover { --cover-seal: clamp(104px, 40cqi, 172px); }
+.cover .cover__seal { --seal-size: var(--cover-seal); }
+.cover__seal-spot { position: relative; display: grid; isolation: isolate; }
+.cover__seal-spot > .gold-seal { grid-area: 1 / 1; }
+
+/* The celebration. The seal falls onto the leather from a little above and
+   settles, the blind ring it lands on fades as it covers it, and every
+   piece of foil on the cover catches the light once. */
+@keyframes cover-seal-in {
+  0% { opacity: 0; transform: scale(1.8); }
+  20% { opacity: 1; }
+  45% { transform: scale(0.92); }
+  60%, 100% { opacity: 1; transform: scale(1); }
+}
+@keyframes cover-ring-out {
+  0%, 70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes cover-glint {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0% 0; }
+}
+.cover.is-celebrating .cover__seal:not(.cover__seal--ring) { animation: cover-seal-in 1100ms cubic-bezier(0.3, 0, 0.2, 1) both; }
+.cover.is-celebrating .cover__seal--ring { animation: cover-ring-out 1100ms linear both; }
+.cover.is-celebrating .foil,
+.cover.is-celebrating .cover__mark {
+  --shine: 1;
+  background-size: 300% 100%;
+  will-change: transform;
+  animation: cover-glint 1600ms 650ms linear both;
+}
 
 .cover__year {
   font-family: var(--font-display);
@@ -174,11 +205,11 @@
 /* Held, the foil repaints every frame. On its own layer that's just the
    letters, not the leather grain and the edge shadow under them. */
 .is-lit .book__slot .foil, .is-lit .book__slot .cover__mark { will-change: transform; }
-.book__face .cover__mark, .is-lit .book__slot .cover__mark { background-image: var(--foil-ramp); }
+.book__face .cover__mark, .is-lit .book__slot .cover__mark, .cover.is-celebrating .cover__mark { background-image: var(--foil-ramp); }
 /* The lettering clips the same ramp to its letters, spelled out here so
    the Hallmark check can see every stop is a token. The pressed-in shadow
    goes, since it would print over a clipped background. */
-.book__face .foil, .is-lit .book__slot .foil {
+.book__face .foil, .is-lit .book__slot .foil, .cover.is-celebrating .foil {
   background-image: linear-gradient(105deg, var(--color-foil) 0 22%, var(--foil-band-soft) 28%, var(--color-foil) 34% 38%, var(--foil-edge) 43%, var(--foil-band) 48% 52%, var(--foil-edge) 57%, var(--color-foil) 62% 100%);
   color: transparent;
   -webkit-background-clip: text;
@@ -216,5 +247,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .cover__open { transition: none; }
+  .cover.is-celebrating .cover__seal, .cover.is-celebrating .foil, .cover.is-celebrating .cover__mark { animation: none; }
+  .cover.is-celebrating .cover__seal--ring { display: none; }
   .book__face .foil, .book__face .cover__mark { animation: none; }
 }
