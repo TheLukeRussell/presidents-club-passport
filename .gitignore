@@ -17,6 +17,10 @@ dist
 *.csv
 *.xls
 *.xlsx
+# The one exception: the empty tracker template, so people can download it.
+# It's only ever headers, dropdowns and fake example rows. Fill in a copy
+# somewhere else, never this one.
+!templates/presidents-club-tracker.xlsx
 .env
 .env.*
 # npm run import writes the real sheet here: real names, public repo.
