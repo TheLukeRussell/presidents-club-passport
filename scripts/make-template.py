@@ -123,7 +123,7 @@ def stamps_tab(wb, rows):
     pick(ws, 'B', ACTIVITIES, 'Pick an activity',
          'Choose Supplier training, Supplier fair, Hub course, Club Express or Quota from the list.',
          tip_title='What they did', tip_text='Pick from the list. See Start here for what goes with each.')
-    tip(ws, 'C', 'Event name', 'Use the same name for everyone at the same event. Copy it down.')
+    tip(ws, 'C', 'Event name', 'The same name for everyone at the same event. Copy and paste the row; don’t drag it.')
     pick(ws, 'D', SUPPLIERS, 'New supplier?', 'This supplier isn’t on the list. Keep it if it’s a new one.',
          style='information', tip_title='Supplier', tip_text='Supplier trainings and Hub courses only.')
     date_column(ws, 'E', 'Date', 'The day it happened. For a Hub course, the day they finished.')
@@ -136,7 +136,7 @@ def stamps_tab(wb, rows):
 
 # Seven columns, sized for the "what to type" table in step 2. Prose sits in
 # cells merged across all of them.
-WIDTHS = [32, 18, 30, 13, 18, 11, 13]
+WIDTHS = [32, 18, 30, 16, 16, 11, 14]
 
 
 class Page:
@@ -195,6 +195,8 @@ class Page:
                     cell.fill = FOG_FILL
                 elif c == 1:
                     cell.font = Font(bold=True)
+                elif value == '(leave blank)':
+                    cell.font = Font(italic=True, color='6B6C70')
                 if isinstance(value, str):
                     longest = max(longest, -(-len(value) // int(WIDTHS[c - 1] * 1.05)))
             self.ws.row_dimensions[self.row].height = longest * 15.5 + 4
@@ -208,17 +210,19 @@ def start_here(wb):
     ws = wb.active
     ws.title = 'Start here'
     p = Page(ws)
+    BLANK = '(leave blank)'
 
     p.text('President’s Club tracker', bold=True, size=18)
     p.text('This sheet feeds the President’s Club Passport. Add a row whenever a rep does something that counts, '
            'and their passport and the Standings pick it up.')
-    p.text('It takes about five minutes to learn. Read this page once, then use the Reps and Stamps tabs.', italic=True)
+    p.text('It takes about five minutes to learn. Read this page once, then use the Reps and Stamps tabs. '
+           'Use Excel, on the desktop or online: Google Sheets and Numbers lose the dropdowns.', italic=True)
     p.gap()
 
     p.text('Three rules', bold=True, size=13)
-    p.text('1.  Don’t rename the tabs, the tables or the header rows. The passport finds them by name.')
-    p.text('2.  Add a row by typing in the first empty row under a table. The table grows on its own.')
-    p.text('3.  Only add what actually happened. Nothing planned, nothing missed.')
+    p.text('1.  Don’t rename the tabs or change the headers in row 1. The passport finds them by name.')
+    p.text('2.  Start in row 2 of each tab and keep going down. The table grows on its own.')
+    p.text('3.  Only add what actually happened. Not events coming up, and not ones someone was invited to but skipped.')
     p.gap()
 
     p.band('Step 1.  Add every rep (Reps tab)')
@@ -226,33 +230,43 @@ def start_here(wb):
     p.pair('rep_email', 'Their work email. Stamps are matched to the rep by this, so it has to be spelled the same on both tabs.')
     p.pair('rep_name', 'First and last name, the way it should show on their passport.')
     p.pair('team', 'Pick from the list: Communications, POSB, NetSec, Cisco or Federal.')
-    p.pair('start_date', 'Only if they joined after July 1, 2026. Leave it blank for everyone else.')
+    p.pair('start_date', 'Only for someone who joined after the program started on July 1, 2026, like a new hire. '
+                         'Leave it blank for everyone else. Don’t log anything from before their start date.')
     p.gap()
 
     p.band('Step 2.  Add a row each time someone earns a stamp (Stamps tab)')
-    p.text('Find what happened in the left column, then fill in the row the same way. A dash means leave that cell empty.')
+    p.text('Pick the rep’s email from the dropdown in the first column. Then find what happened below and fill in the '
+           'rest of the row the same way. “Like …” is an example; words in quotes are typed exactly.')
     p.grid([['What happened', 'activity', 'event', 'supplier', 'date', 'format', 'location']], head=True)
     p.grid([
-        ['Went to a supplier training in person', 'Supplier training', 'The training’s name, like Zebra solutions workshop', 'Zebra', 'The day', 'In person', 'The city'],
-        ['Joined a supplier training online', 'Supplier training', 'The training’s name, like Zebra partner training', 'Zebra', 'The day', 'Virtual', '-'],
-        ['Went to a supplier fair', 'Supplier fair', 'The fair’s name, like Fall Supplier Fair', '-', 'The day', '-', 'The city'],
-        ['Finished a course on the Hub', 'Hub course', 'The course’s title, like Meraki fundamentals', 'Cisco', 'The day they finished', '-', '-'],
-        ['Went to Club Express', 'Club Express', 'Club Express Fall or Club Express Spring', '-', 'The day', '-', 'The city'],
-        ['Hit their sales growth quota', 'Quota', 'FY27 sales growth quota', '-', 'The day results came in', '-', '-'],
+        ['Went to a supplier training in person', 'Supplier training', 'The training’s name, like Zebra solutions workshop', 'The supplier, like Zebra', 'The day', 'In person', 'The city, like Greenville'],
+        ['Joined a supplier training online', 'Supplier training', 'The training’s name, like Zebra partner training', 'The supplier, like Zebra', 'The day', 'Virtual', BLANK],
+        ['Went to a supplier fair', 'Supplier fair', 'The fair’s name, like Fall Supplier Fair', BLANK, 'The day', BLANK, 'The city, or “Online”'],
+        ['Finished a course on the Hub', 'Hub course', 'The course’s title, like Meraki fundamentals', 'The supplier, like Cisco', 'The day they finished', BLANK, BLANK],
+        ['Went to Club Express', 'Club Express', '“Club Express Fall” or “Club Express Spring”', BLANK, 'The day', BLANK, 'The city'],
+        ['Hit their sales growth quota', 'Quota', '“Sales growth quota”', BLANK, 'The day results came in', BLANK, BLANK],
     ])
     p.gap()
-    p.pair('A whole room?', 'Fill in one row, then copy it down once for each person and change only the email. '
-                            'That keeps the event name and date the same for everyone, which is how the passport knows they were at the same event.')
+    p.pair('A whole room?', 'Fill in one row, then copy it and paste it once for each person (Ctrl+C, then Ctrl+V; Cmd on a Mac), '
+                            'and change only the email. Don’t drag the corner of the cell down: Excel adds a day to the date on every row. '
+                            'The same event name and date for everyone is how the passport knows they were at the same event.')
     p.pair('Quota', 'Results come in at the end of June. Add one Quota row for each rep who hit it, and leave everyone else off.')
     p.pair('Not sure?', 'Leave it out and ask. A missing row is easy to add later; a wrong one gives someone a stamp they didn’t earn.')
+    p.pair('Someone leaves', 'Leave their rows where they are, and ask before deleting anything.')
+    p.pair('Your own notes', 'Add a column at the far right if you like. The passport ignores it.')
     p.gap()
 
     p.band('Step 3.  Check before you save')
     p.text('☐  Every email on the Stamps tab is also on the Reps tab, spelled the same. (Stamps warns you when it isn’t.)')
     p.text('☐  Everyone at the same event has the same event name and the same date.')
     p.text('☐  Every supplier training says In person or Virtual. A blank one counts as virtual.')
-    p.text('☐  Dates are real dates: Excel shows them like 2026-09-23. If one sits on the left of its cell, it’s text, so type it again.')
+    p.text('☐  Dates are real dates. Type them like 9/23/2026, and Excel shows them as 2026-09-23. If one sits on the left of its cell, it’s text, so type it again.')
     p.text('☐  Nothing is in there that hasn’t happened yet.')
+    p.gap()
+
+    p.band('Step 4.  Save it in the shared folder')
+    p.text('Save it where your team keeps it, under the same file name. That’s the copy the passport reads. '
+           'Reading it straight from there is still being set up, so for now the demo shows sample data.')
     p.gap()
 
     p.band('What counts toward President’s Club')
@@ -265,13 +279,13 @@ def start_here(wb):
     p.gap()
 
     p.band('Every column, explained')
-    p.pair('rep_email', 'The rep’s work email, the same on both tabs.')
+    p.pair('rep_email', 'The rep’s work email, the same on both tabs. On Stamps, pick it from the dropdown.')
     p.pair('activity', 'Supplier training, Supplier fair, Hub course, Club Express or Quota. Pick from the list.')
-    p.pair('event', 'The event’s name. The same for everyone who was there. For quota you can leave it blank.')
-    p.pair('supplier', 'Supplier trainings and Hub courses only. Pick from the list, or type a new one.')
+    p.pair('event', 'The event’s name, the same for everyone who was there. For quota, type Sales growth quota.')
+    p.pair('supplier', 'Supplier trainings and Hub courses only. Pick from the list, or type a new one. Leave it blank for the rest.')
     p.pair('date', 'The day they attended, the day they finished the Hub course, or the day quota results came in.')
     p.pair('format', 'Supplier trainings only: In person or Virtual.')
-    p.pair('location', 'The city, when there is one.')
+    p.pair('location', 'The city, like Greenville, when there is one. Leave it blank for online trainings and Hub courses.')
     p.gap()
 
     p.text('Made-up examples', bold=True, size=13)
@@ -280,7 +294,7 @@ def start_here(wb):
     p.grid([['rep_email', 'rep_name', 'team', 'start_date']], head=True)
     p.grid([
         ['sam.sample@example.com', 'Sam Sample', 'POSB', None],
-        ['pat.placeholder@example.com', 'Pat Placeholder', 'Federal', date(2027, 6, 1)],
+        ['pat.placeholder@example.com', 'Pat Placeholder', 'Federal', date(2027, 3, 2)],
     ], dates=(4,))
     p.gap()
     p.text('On the Stamps tab', bold=True)
@@ -290,6 +304,7 @@ def start_here(wb):
         ['sam.sample@example.com', 'Supplier training', 'Cisco partner training', 'Cisco', date(2027, 2, 10), 'Virtual', None],
         ['sam.sample@example.com', 'Supplier fair', 'Fall Supplier Fair', None, date(2026, 9, 10), None, 'Atlanta'],
         ['sam.sample@example.com', 'Hub course', 'Meraki fundamentals', 'Cisco', date(2026, 11, 2), None, None],
+        ['sam.sample@example.com', 'Quota', 'Sales growth quota', None, date(2027, 6, 30), None, None],
         ['pat.placeholder@example.com', 'Club Express', 'Club Express Spring', None, date(2027, 6, 17), None, 'Greenville'],
     ], dates=(5,))
 
