@@ -77,14 +77,20 @@ describe('activityFor', () => {
     expect(typeof one !== 'string' && typeof two !== 'string' && activityKey(one) === activityKey(two)).toBe(true)
   })
 
-  it('files Club Express under the set session, matched by name or day', () => {
+  it('files Club Express under the set session, found by name or day', () => {
     const [fall, spring] = CLUB_EXPRESS
-    expect(activityFor(row({ activity: 'club', event: 'club express, fall', date: '2026-10-15' }))).toMatchObject({
+    expect(activityFor(row({ activity: 'club', event: 'club express, fall', date: fall.date }))).toMatchObject({
       type: 'club_express',
       title: fall.title,
       event_date: fall.date,
     })
     expect(activityFor(row({ activity: 'club', event: 'Spring kickoff', date: spring.date }))).toMatchObject({ title: spring.title, event_date: spring.date })
+  })
+
+  it('refuses a Club Express named for a session but dated another day', () => {
+    // It would count before the session happened.
+    expect(activityFor(row({ activity: 'club', event: 'Club Express Spring', date: '2026-11-01' }))).toMatch(/dated 2026-11-01, but Club Express Spring was on 2027-06-17/)
+    expect(activityFor(row({ activity: 'club', event: 'Club Express Fall', date: '2027-06-17' }))).toMatch(/but Club Express Fall was on 2026-10-14/)
   })
 
   it('refuses a Club Express that is neither session', () => {

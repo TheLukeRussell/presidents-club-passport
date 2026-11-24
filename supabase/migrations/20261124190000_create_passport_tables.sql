@@ -103,26 +103,33 @@ comment on table public.stamps is 'One row per stamp a rep has earned. Unique on
 comment on column public.stamps.earned_at is 'Day attended or completed.';
 comment on column public.stamps.source is 'scan, import or admin. Quota stamps are always admin.';
 
--- The quota is set by an admin, so its stamp says so. Checked in the database
--- so no import path can get it wrong.
-create function public.stamps_quota_is_admin()
+-- Two rules every stamp follows, checked in the database so no import path
+-- can get them wrong:
+--   - The quota is set by an admin, so its stamp says so.
+--   - Nobody earns a stamp before the event happened. A Club Express Spring
+--     stamp dated in November would otherwise count months early.
+create function public.stamps_follow_the_rules()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
+declare
+  activity record;
 begin
-  if new.source <> 'admin' and exists (
-    select 1 from public.activities a where a.id = new.activity_id and a.type = 'quota'
-  ) then
+  select a.type, a.event_date into activity from public.activities a where a.id = new.activity_id;
+  if activity.type = 'quota' and new.source <> 'admin' then
     raise exception 'A sales growth quota stamp is set by an admin, so its source has to be admin (got %).', new.source;
+  end if;
+  if activity.event_date is not null and new.earned_at < activity.event_date then
+    raise exception 'A stamp can''t be earned before its event: % is before %.', new.earned_at, activity.event_date;
   end if;
   return new;
 end;
 $$;
 
-create trigger stamps_quota_is_admin
-before insert or update of source, activity_id on public.stamps
-for each row execute function public.stamps_quota_is_admin();
+create trigger stamps_follow_the_rules
+before insert or update of source, activity_id, earned_at on public.stamps
+for each row execute function public.stamps_follow_the_rules();
 
 -- It only ever runs as a trigger, so nobody needs to call it directly.
-revoke all on function public.stamps_quota_is_admin() from public, anon, authenticated, service_role;
+revoke all on function public.stamps_follow_the_rules() from public, anon, authenticated, service_role;

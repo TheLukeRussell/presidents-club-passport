@@ -85,9 +85,9 @@ export interface ActivityRow {
 const squash = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, '')
 
 // Which activity a stamp belongs to. Club Express has to be one of the two
-// set sessions in src/config.ts, matched by name or day, and is stored under
-// that session's own name and day so the two sessions stay two rows. Returns
-// the reason as a string when the stamp can't be placed.
+// set sessions in src/config.ts, found by name or day and dated that day, and
+// is stored under that session's own name and day so the two sessions stay
+// two rows. Returns the reason as a string when the stamp can't be placed.
 export function activityFor(row: StampRow): ActivityRow | string {
   const type = activityTypeOf(row.activity, row.format)
   const blank = (text: string) => (text.trim() === '' ? null : text.trim())
@@ -96,6 +96,9 @@ export function activityFor(row: StampRow): ActivityRow | string {
     if (!session) {
       return `“${row.event}” on ${row.date} isn’t either Club Express session (${CLUB_EXPRESS.map((e) => `${e.title} on ${e.date}`).join(', ')})`
     }
+    // Matched by name, but on another day: a typo, or a sign-up date. Either
+    // way it would count before the session happened, so it's refused.
+    if (row.date !== session.date) return `“${row.event}” is dated ${row.date}, but ${session.title} was on ${session.date}`
     return { type, title: session.title, supplier: null, location: blank(row.location), event_date: session.date }
   }
   if (type === 'quota') return { type, title: QUOTA_TITLE, supplier: null, location: null, event_date: null }

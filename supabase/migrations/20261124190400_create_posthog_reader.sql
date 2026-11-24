@@ -8,8 +8,9 @@
 --
 -- What posthog_reader can do: SELECT, on those views and on the same columns
 -- of the real tables underneath them. Never reps.email, never a write, and
--- nothing outside the passport tables. Every session it opens is read-only
--- as well.
+-- nothing outside the passport tables. The grants are what stop writes; its
+-- sessions are also read-only by default, as a setting the role could change
+-- for itself, so treat that as a seatbelt rather than the lock.
 --
 -- Why a schema of views: PostHog's Postgres sync reads each table with
 -- SELECT *. On the real reps table that would fail, because email is held
@@ -35,8 +36,9 @@ $$;
 
 comment on role posthog_reader is 'Read-only login for PostHog''s Postgres source: SELECT on the views in schema posthog (no rep emails).';
 
--- A second lock behind the grants: anything it runs is read-only, and a
--- runaway query is stopped after a minute.
+-- Read-only by default and a one-minute limit on any query. The role can
+-- change these session settings itself; the SELECT-only grants below are what
+-- actually keep it from writing.
 alter role posthog_reader set default_transaction_read_only = on;
 alter role posthog_reader set statement_timeout = '60s';
 

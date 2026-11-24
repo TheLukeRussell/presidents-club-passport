@@ -3,8 +3,10 @@
 -- The site ships Supabase's anon key in public JavaScript, so these rules are
 -- the only thing between the internet and the data. In short:
 --   - Signed out (anon): nothing at all.
---   - Signed in (authenticated): your own rep row, your own stamps, and the
---     list of activities. Never anyone else's rep row or stamps.
+--   - Signed in and on the roster (authenticated, with a rep row): your own
+--     rep row, your own stamps, and the list of activities. Never anyone
+--     else's rep row or stamps. A signed-in account that isn't on the roster
+--     sees nothing at all.
 --   - Nobody writes from the browser. There are no insert, update or delete
 --     policies, and the privileges to do so are taken away as well, so a
 --     missing policy can't be the only safeguard.
@@ -49,10 +51,10 @@ using (
 );
 
 -- The activities are the program's calendar (event names, suppliers, dates),
--- not anyone's record, so any signed-in rep can read them. Who attended what
--- lives in stamps, which stays private.
-create policy "Signed-in reps can read activities"
+-- not anyone's record, so any rep on the roster can read them. Who attended
+-- what lives in stamps, which stays private.
+create policy "Reps on the roster can read activities"
 on public.activities
 for select
 to authenticated
-using (true);
+using (exists (select 1 from public.reps r where r.user_id = (select auth.uid())));

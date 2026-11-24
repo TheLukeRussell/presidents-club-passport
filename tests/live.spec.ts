@@ -31,7 +31,8 @@ test('a rep signs in with the emailed code and sees only their own passport', as
 
   // The email went to the lowercased address, with this site as the way back.
   const otp = calls.find((c) => c.path === '/auth/v1/otp')!
-  expect(otp.body).toMatchObject({ email: EMAIL, create_user: true })
+  // It never asks Supabase to make an account: the importer does that.
+  expect(otp.body).toMatchObject({ email: EMAIL, create_user: false })
   expect(new URLSearchParams(otp.search).get('redirect_to')).toBe(baseURL)
   expect(calls.find((c) => c.path === '/auth/v1/verify')!.body).toMatchObject({ email: EMAIL, token: '123456', type: 'email' })
 

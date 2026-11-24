@@ -38,10 +38,10 @@ The five files in `supabase/migrations` create everything, in order. They only c
 
 | File | Creates |
 |---|---|
-| `…190000_create_passport_tables.sql` | `reps`, `activities`, `stamps`, and a check that quota stamps are set by an admin |
-| `…190100_lock_down_passport_access.sql` | Row-level security. Signed out: nothing. Signed in: your own rep row and stamps, plus the activity list. No writes from the browser. The service role can read, add and update, but not delete. |
+| `…190000_create_passport_tables.sql` | `reps`, `activities`, `stamps`, and two checks: quota stamps are set by an admin, and no stamp is dated before its event |
+| `…190100_lock_down_passport_access.sql` | Row-level security. Signed out: nothing. Signed in and on the roster: your own rep row and stamps, plus the activity list. No writes from the browser. The service role can read, add and update, but not delete. |
 | `…190200_create_rep_progress_view.sql` | `rep_progress`: each rep's count per type vs the minimum, minimums met, `completion_percent`, `qualified` |
-| `…190300_link_sign_ins_to_reps.sql` | Links a Supabase sign-in to its rep row by email, plus an optional roster-only sign-up hook |
+| `…190300_link_sign_ins_to_reps.sql` | Links a confirmed Supabase sign-in to its rep row by email, plus an optional roster-only sign-up hook |
 | `…190400_create_posthog_reader.sql` | The `posthog_reader` login and the `posthog` schema it reads (no password set) |
 
 Easiest: open the project's **SQL Editor**, paste each file in order and run it.
@@ -71,11 +71,19 @@ In the Supabase dashboard, under **Authentication**:
    - `https://thelukerussell.github.io/presidents-club-passport/**`
    - `http://localhost:5173/presidents-club-passport/**` (the dev server)
    - `http://localhost:5175/presidents-club-passport/**` (the browser tests)
-2. **Emails (templates).** In both **Magic Link** and **Confirm signup**, add the 6-digit code next to the link, for example `Or type this code: {{ .Token }}`. A new rep gets Confirm signup the first time and Magic Link after that. The code matters because a link only works in the browser that asked for it, and some work email scanners click links before the rep does, which uses them up.
-3. **Hooks.** Add a **Before User Created** hook, type Postgres, function `public.hook_only_roster_sign_ups`. Only emails already in `reps` can then get an account. Without it, anyone can ask for a sign-in email (they still see nothing). Keep **Allow new users to sign up** on: the hook is what decides, and turning sign-ups off would lock out reps who've never signed in.
+2. **Emails (templates).** In **Magic Link**, add the 6-digit code next to the link, for example `Or type this code: {{ .Token }}`. The code matters because a link only works in the browser that asked for it, and some work email scanners click links before the rep does, which uses them up.
+3. **Sign-ups off.** Under **Sign In / Providers**, turn **Allow new users to sign up** off, and leave **Confirm email** on. Reps don't sign up: the attendance importer (step 6) makes each rep's account, already confirmed and with no password. With sign-ups on, someone could register a rep's address with a password before the rep ever signs in, and get into their passport once it's confirmed. With them off, only the importer can make an account.
 4. **SMTP.** Supabase's built-in email only sends to your own Supabase team's addresses, and only 2 an hour. That's fine for testing with your own address. Before real reps sign in, set up your own email provider under **Authentication, SMTP**, and turn off its link tracking, which breaks sign-in links.
 
-To try sign-in yourself, add yourself as a rep with the importer (step 6) using a CSV with your own email. Keep that CSV out of the repo: `*.csv` is gitignored.
+The migrations also include an optional **Before User Created** hook, `public.hook_only_roster_sign_ups`, which only lets emails in `reps` get an account. It's only worth switching on (under **Hooks**) if you ever turn sign-ups back on, and even then the email-confirmation rule above still applies.
+
+Known trade-off: the sign-in screen answers differently for an address that's set up and one that isn't, so someone could test whether an email is on the roster. Every roster-gated sign-in does this.
+
+**To try sign-in yourself:**
+1. Add yourself under **Authentication, Users, Add user, Create new user**, with your own email and **Auto Confirm User** ticked. It asks for a password: use a long random one, since you'll sign in with the link or code instead.
+2. Add your row to `reps` in the **Table Editor**: your email in lowercase, your name and your team.
+
+The database links the two. Or include yourself in an attendance CSV (step 6). The importer needs a real past FY27 activity for each row, though, and that stamp stays. Keep any such CSV out of the repo: `*.csv` is gitignored.
 
 ### 5. Fill in config.js
 
@@ -102,18 +110,23 @@ npm run import:attendance -- path/to/attendance.csv --apply   # does it
 
 `.env` is gitignored and is the only place the service role key goes.
 
-The dry run reads the database and lists exactly which reps, activities and stamps are new, and which rep names or teams would change. It writes nothing. `--apply` makes those changes and nothing else. It never deletes, never blanks a field, and running the same file twice adds nothing the second time.
+The dry run reads the database and lists exactly which reps, activities and stamps are new, which rep names, teams or companies would change, and which reps need a sign-in account. It writes nothing. `--apply` makes those changes and nothing else. It never deletes, never blanks a field, and running the same file twice adds nothing the second time.
+
+Each new rep gets a sign-in account, made confirmed and with no password, and no email is sent. That's how reps can sign in while public sign-ups stay off (step 4).
 
 | Column | Needed | Notes |
 |---|---|---|
 | `email` | Yes | Lowercased on the way in |
 | `name` | Yes | |
 | `date` | Yes | `2026-09-24` or `9/24/2026`. Rows dated after today, or outside FY27, are left out. |
-| `type` | Usually | `in_person_training`, `virtual_training`, `supplier_fair`, `hub_training`, `club_express` or `quota`. If it's missing, the importer works it out from the title where it can ("Fall Supplier Fair" is a fair). |
+| `type` | Yes for the quota and most Hub courses | `in_person_training`, `virtual_training`, `supplier_fair`, `hub_training`, `club_express` or `quota`. If it's missing, the importer guesses from clear words in the title ("Fall Supplier Fair" is a fair, "Hub: …" a Hub course, "… workshop" a training) and notes every guess. It never guesses the quota. |
 | `title` (or `Activity title`) | Yes, except quota | The event or course |
-| `team`, `company`, `supplier`, `format`, `location` | No | A training with no format counts as virtual. |
+| `format` | Yes for trainings to count | `In person` or `Virtual`. A training with no format, and no `in_person_training` type, is stored as virtual and won't count toward the in-person four. |
+| `team`, `company`, `supplier`, `location` | No | |
 
-Club Express rows have to be one of the two sessions in `src/config.ts`. A Hub course is one activity however many days people finish it on. Quota rows are stored as set by an admin.
+**Get the type and format right before `--apply`.** The CSV in the original brief (email, name, company, activity title, date) has neither, so on its own it stores every training as virtual and skips Hub courses whose title doesn't say "Hub". Importing again with the columns fixed adds a second activity rather than correcting the first. To correct one that's already in, change its `type` in the Table Editor (`activities` table) before re-importing. The dry run puts these warnings at the top.
+
+Club Express rows have to be one of the two sessions in `src/config.ts`, dated that day. A Hub course is one activity however many days people finish it on. Quota rows are stored as set by an admin.
 
 ### 7. Link Supabase in PostHog
 

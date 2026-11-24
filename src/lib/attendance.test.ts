@@ -35,10 +35,89 @@ describe('readAttendance', () => {
       ['ana@example.com', 'Ana', 'Acme', 'Club Express Fall', '2026-10-14'],
       ['ana@example.com', 'Ana', 'Acme', 'Video room design', '2026-10-01'],
     ]
-    const { rows, skipped } = readAttendance(grid, TODAY)
+    const { rows, skipped, notes, inferred } = readAttendance(grid, TODAY)
     expect(rows.map((r) => r.activity.type)).toEqual(['supplier_fair', 'club_express'])
     expect(rows[0].company).toBe('Acme')
-    expect(skipped).toEqual([expect.stringMatching(/^Row 4: can’t tell what kind of activity “Video room design” is, so add a type column/)])
+    expect(skipped).toEqual([expect.stringMatching(/^Row 4: can’t tell what kind of activity “Video room design” is from its title, so add a type column/)])
+    // Every guess is noted, and counted.
+    expect(inferred).toBe(2)
+    expect(notes).toEqual([
+      expect.stringMatching(/^Row 2: no type, so “Fall Supplier Fair” is read as a supplier fair from its title/),
+      expect.stringMatching(/^Row 3: no type, so “Club Express Fall” is read as Club Express from its title/),
+    ])
+  })
+
+  it('only guesses from whole words, and never guesses the quota', () => {
+    const grid = [
+      ['email', 'name', 'activity title', 'date'],
+      ['a@example.com', 'A', 'Partner Growth Summit', '2026-09-01'],
+      ['a@example.com', 'A', 'GitHub Copilot training', '2026-09-02'],
+      ['a@example.com', 'A', 'Fairfield partner training', '2026-09-03'],
+      ['a@example.com', 'A', 'FY27 sales growth quota', '2026-09-04'],
+      ['a@example.com', 'A', 'Hub: Cloud networking fundamentals', '2026-09-05'],
+    ]
+    const { rows, skipped } = readAttendance(grid, TODAY)
+    expect(rows.map((r) => [r.line, r.activity.type])).toEqual([
+      [3, 'virtual_training'],
+      [4, 'virtual_training'],
+      [6, 'hub_training'],
+    ])
+    expect(skipped.map((s) => s.slice(0, 6))).toEqual(['Row 2:', 'Row 5:'])
+  })
+
+  it('lets an explicit type win, and leaves out a row whose type and format disagree', () => {
+    const { rows, skipped } = readAttendance(
+      csv(
+        ['a@example.com', 'A', '', '', 'virtual_training', 'Supplier A partner training', 'Supplier A', 'In person', '', '2026-08-12'],
+        ['a@example.com', 'A', '', '', 'in_person_training', 'Supplier B solutions workshop', 'Supplier B', '', 'Dallas', '2026-08-13'],
+        ['a@example.com', 'A', '', '', 'in_person_training', 'Supplier C solutions workshop', 'Supplier C', 'In person', 'Dallas', '2026-08-14'],
+      ),
+      TODAY,
+    )
+    expect(skipped).toEqual([expect.stringMatching(/^Row 2: the type says virtual but the format says in person, so it’s left out/)])
+    expect(rows.map((r) => r.activity.type)).toEqual(['in_person_training', 'in_person_training'])
+  })
+
+  it('leaves out an email the database would refuse', () => {
+    const { rows, skipped } = readAttendance(
+      csv(
+        ['a@', 'A', '', '', 'supplier_fair', 'Fall Supplier Fair', '', '', '', '2026-09-24'],
+        ['jo smith@example.com', 'Jo', '', '', 'supplier_fair', 'Fall Supplier Fair', '', '', '', '2026-09-24'],
+        ['@example.com', 'X', '', '', 'supplier_fair', 'Fall Supplier Fair', '', '', '', '2026-09-24'],
+      ),
+      TODAY,
+    )
+    expect(rows).toEqual([])
+    expect(skipped).toHaveLength(3)
+    expect(skipped[0]).toMatch(/isn’t an email address it can use/)
+  })
+
+  it('takes a team or company from a later row when the first leaves it blank', () => {
+    const { rows } = readAttendance(
+      csv(
+        ['a@example.com', 'Ana', '', '', 'supplier_fair', 'Fall Supplier Fair', '', '', '', '2026-09-24'],
+        ['a@example.com', 'Ana', 'POSB', 'Acme', 'supplier_fair', 'Winter Supplier Fair', '', '', '', '2026-11-05'],
+      ),
+      TODAY,
+    )
+    expect(rows.map((r) => [r.team, r.company])).toEqual([
+      ['POSB', 'Acme'],
+      ['POSB', 'Acme'],
+    ])
+  })
+
+  it('says when two suppliers’ same-named sessions on one day would be stored as one', () => {
+    const { rows, notes, skipped } = readAttendance(
+      csv(
+        ['a@example.com', 'A', '', '', 'hub_training', 'Product fundamentals', 'Supplier A', '', '', '2026-09-01'],
+        ['b@example.com', 'B', '', '', 'hub_training', 'Product fundamentals', 'Supplier B', '', '', '2026-09-02'],
+        ['a@example.com', 'A', '', '', 'hub_training', 'Product fundamentals', 'Supplier B', '', '', '2026-09-03'],
+      ),
+      TODAY,
+    )
+    expect(rows).toHaveLength(2)
+    expect(notes.some((n) => /^Row 3: same event and day as row 2 but Supplier B, not Supplier A/.test(n))).toBe(true)
+    expect(skipped).toEqual([expect.stringMatching(/^Row 4: same event and day as row 2 but Supplier B, not Supplier A, and a@example.com already has it from row 2/)])
   })
 
   it('splits trainings by format, and calls a training with no format virtual', () => {
@@ -56,6 +135,7 @@ describe('readAttendance', () => {
       ['virtual_training', null],
     ])
     expect(notes).toEqual([expect.stringMatching(/^Row 4: no format, so it’s stored as a virtual training/)])
+    expect(readAttendance(csv(['a@example.com', 'A', '', '', 'training', 'X workshop', '', '', '', '2026-08-19']), TODAY).virtualByDefault).toBe(1)
   })
 
   it('makes a Hub course one undated activity, with the day on the stamp', () => {
@@ -87,6 +167,7 @@ describe('readAttendance', () => {
     )
     expect(rows).toHaveLength(1)
     expect(skipped.map((s) => s.replace(/:.*/, ''))).toEqual(['Row 2', 'Row 3', 'Row 4', 'Row 5', 'Row 6', 'Row 7', 'Row 8', 'Row 10'])
+    expect(skipped[6]).toMatch(/no activity type it knows \(“webinar”\)/)
     expect(skipped[3]).toMatch(/hasn’t happened yet/)
     expect(skipped[4]).toMatch(/outside FY27/)
     expect(skipped[5]).toMatch(/isn’t either Club Express session/)
@@ -135,6 +216,8 @@ describe('planImport', () => {
   it('adds everything to an empty database', () => {
     const plan = planImport(read.rows, EMPTY)
     expect(plan.newReps.map((r) => r.email)).toEqual(['ana@example.com', 'ben@example.com'])
+    // Each new rep gets a sign-in account.
+    expect(plan.accounts).toEqual(['ana@example.com', 'ben@example.com'])
     expect(plan.newActivities.map((a) => a.type)).toEqual(['supplier_fair', 'hub_training', 'quota'])
     expect(plan.newStamps.map((s) => [s.email, s.type, s.source])).toEqual([
       ['ana@example.com', 'supplier_fair', 'import'],
@@ -148,8 +231,8 @@ describe('planImport', () => {
   it('adds nothing when it has all already, so a rerun is a no-op', () => {
     const state: CurrentState = {
       reps: [
-        { id: 'r1', email: 'ana@example.com', name: 'Ana Lee', team: 'POSB', company: null },
-        { id: 'r2', email: 'ben@example.com', name: 'Ben Cho', team: 'NetSec', company: 'Acme' },
+        { id: 'r1', email: 'ana@example.com', name: 'Ana Lee', team: 'POSB', company: null, user_id: 'u1' },
+        { id: 'r2', email: 'ben@example.com', name: 'Ben Cho', team: 'NetSec', company: 'Acme', user_id: 'u2' },
       ],
       activities: [
         { id: 'a1', type: 'supplier_fair', title: 'Fall Supplier Fair', supplier: null, location: 'Atlanta', event_date: '2026-09-24' },
@@ -188,6 +271,18 @@ describe('planImport', () => {
     expect(plan.newActivities.map((a) => a.type)).toEqual(['hub_training', 'quota'])
     expect(plan.activityIds.get('supplier_fair|Fall Supplier Fair|2026-09-24')).toBe('a1')
     expect(plan.notes).toEqual([expect.stringMatching(/“FALL SUPPLIER FAIR” is already in the database, so its city “Atlanta” \(it has “Atlanta, GA”\) is left as it is/)])
+  })
+
+  it('makes a sign-in account only for reps who aren’t linked to one', () => {
+    const state: CurrentState = {
+      reps: [
+        { id: 'r1', email: 'ana@example.com', name: 'Ana Lee', team: 'POSB', company: null, user_id: 'u1' },
+        { id: 'r2', email: 'ben@example.com', name: 'Ben Cho', team: 'NetSec', company: 'Acme', user_id: null },
+      ],
+      activities: [],
+      stamps: [],
+    }
+    expect(planImport(read.rows, state).accounts).toEqual(['ben@example.com'])
   })
 
   it('only adds the stamps a rep doesn’t have yet', () => {

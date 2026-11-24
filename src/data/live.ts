@@ -65,11 +65,11 @@ export function onAuthChange(listener: (event: AuthChangeEvent, session: Session
 }
 
 // Sends the email with the link and a 6-digit code (the code shows if the
-// email template includes it, see README). shouldCreateUser stays on: a rep
-// who has never signed in has no account yet. The roster check in the
-// database decides who's allowed (the "Before User Created" hook).
+// email template includes it, see README). It never makes an account: the
+// attendance importer makes one for each rep on the roster, and public
+// sign-ups stay off, so nobody can register a rep's address first.
 export async function sendSignInEmail(email: string): Promise<void> {
-  const { error } = await (await supabase()).auth.signInWithOtp({ email, options: { emailRedirectTo: returnUrl(), shouldCreateUser: true } })
+  const { error } = await (await supabase()).auth.signInWithOtp({ email, options: { emailRedirectTo: returnUrl(), shouldCreateUser: false } })
   if (error) throw error
 }
 

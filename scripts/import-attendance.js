@@ -10,6 +10,11 @@
 // updates a rep's name, team or company when the CSV has a different value.
 // Running the same file twice adds nothing the second time.
 //
+// It also makes each rep's sign-in account, already confirmed and with no
+// password, so they can sign in with an email link or code. That's what lets
+// the project keep public sign-ups switched off (README, step 4): nobody can
+// make an account for a rep's address but this script. No email is sent.
+//
 // It needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in a .env file at the
 // repo root (copy .env.example). The service role key can do anything in the
 // project, so it stays in .env, which is gitignored. Never put it in
@@ -39,7 +44,7 @@ import { PROGRAM_TIME_ZONE } from '../src/config.ts'
 
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..')
 const USAGE = 'Usage: npm run import:attendance -- <attendance.csv> [--apply]'
-const CHUNK = 200 // rows per request, well under PostgREST's limits
+const CHUNK = 100 // rows per request, which keeps each request's address well under server limits
 
 function fail(message) {
   console.error(`\n${message}\n`)
@@ -128,20 +133,23 @@ async function must(promise, what) {
   return data
 }
 
-// Every row of a query, a page at a time (Supabase returns 1000 at most).
+// Every row of a query, a page at a time. It stops at the first empty page,
+// not the first short one, because a project can be set to return fewer
+// rows per request than asked for.
 async function all(build, what) {
   const rows = []
-  for (let from = 0; ; from += 1000) {
+  for (let from = 0; ; ) {
     const page = await must(build().range(from, from + 999), what)
+    if (!page.length) return rows
     rows.push(...page)
-    if (page.length < 1000) return rows
+    from += page.length
   }
 }
 
 async function currentState(emails) {
   const reps = []
   for (const part of chunks(emails)) {
-    reps.push(...(await all(() => db.from('reps').select('id, email, name, team, company').in('email', part).order('email'), 'Reading reps')))
+    reps.push(...(await all(() => db.from('reps').select('id, email, name, team, company, user_id').in('email', part).order('email'), 'Reading reps')))
   }
   const activities = await all(() => db.from('activities').select('id, type, title, supplier, location, event_date').order('id'), 'Reading activities')
   const stamps = []
@@ -173,6 +181,14 @@ console.log(`Today (${PROGRAM_TIME_ZONE}): ${today}. Rows dated after today are 
 
 show(`Left out (${read.skipped.length}):`, read.skipped)
 show(`Worth a look (${read.notes.length}):`, read.notes)
+// These two can't be fixed by importing again (that would add a second
+// activity and stamp), so they go up front.
+if (read.virtualByDefault) {
+  console.log(`\n!! ${plural(read.virtualByDefault, 'training')} with no format will be stored as virtual and won’t count toward the in-person four. Add a format column (In person / Virtual) or use type in_person_training to change that before applying.`)
+}
+if (read.inferred) {
+  console.log(`\n!! ${plural(read.inferred, 'row')} had no type, so the type was worked out from the title. Check them above, or add a type column.`)
+}
 
 if (!read.rows.length) fail('No usable rows, so there’s nothing to import.')
 
@@ -194,6 +210,7 @@ const plan = planImport(read.rows, current)
 console.log(`\nReps: ${plan.newReps.length} new, ${plan.changedReps.length} updated, ${plan.sameReps} already up to date`)
 console.log(`Activities: ${plan.newActivities.length} new, ${plan.sameActivities} already there`)
 console.log(`Stamps: ${plan.newStamps.length} new, ${plan.sameStamps} already there`)
+console.log(`Sign-in accounts: ${plan.accounts.length} to make (confirmed, no password, no email sent)`)
 show('New reps:', plan.newReps.map((r) => `+ ${r.email}  ${r.name}${r.team ? `  (${r.team})` : ''}`))
 show('Rep changes:', plan.changedReps.map((c) => `~ ${describeChange(c)}`))
 show('New activities:', plan.newActivities.map((a) => `+ ${describeActivity(a)}`))
@@ -217,7 +234,7 @@ if (!apply) {
 // Nothing here deletes. If something fails part way, run it again: whatever
 // already made it in is skipped.
 
-const done = { reps: 0, updated: 0, activities: 0, stamps: 0 }
+const done = { reps: 0, updated: 0, accounts: 0, existing: [], activities: 0, stamps: 0 }
 try {
   const repIds = new Map(current.reps.map((r) => [r.email, r.id]))
   for (const part of chunks(plan.newReps)) {
@@ -228,6 +245,17 @@ try {
   for (const change of plan.changedReps) {
     await must(db.from('reps').update(change.set).eq('id', change.id).select('id'), `Updating ${change.email}`)
     done.updated += 1
+  }
+
+  // Sign-in accounts, after the rep rows: the database links each new
+  // account to its rep row as it's made. An address that already has an
+  // account (someone signed it up while sign-ups were on, say) is left
+  // alone and listed, so it can be checked in Authentication, Users.
+  for (const email of plan.accounts) {
+    const { error } = await db.auth.admin.createUser({ email, email_confirm: true })
+    if (!error) done.accounts += 1
+    else if (error.code === 'email_exists' || /already been registered|already exists/i.test(error.message)) done.existing.push(email)
+    else throw new Error(`Making a sign-in account for ${email}: ${error.message}`)
   }
 
   const activityIds = new Map(plan.activityIds)
@@ -255,9 +283,12 @@ try {
   }
 } catch (error) {
   console.error(`\nStopped: ${error.message}`)
-  console.error(`Written before it stopped: ${done.reps} reps added, ${done.updated} updated, ${done.activities} activities, ${done.stamps} stamps.`)
+  console.error(`Written before it stopped: ${done.reps} reps added, ${done.updated} updated, ${done.accounts} sign-in accounts, ${done.activities} activities, ${done.stamps} stamps.`)
   console.error('Nothing was deleted. Fix the problem and run it again: anything already in is skipped.\n')
   process.exit(1)
 }
 
-console.log(`\nDone: ${done.reps} reps added, ${done.updated} updated, ${done.activities} activities added, ${done.stamps} stamps added. Nothing was deleted.\n`)
+if (done.existing.length) {
+  show('Already had a sign-in account (check in Supabase, Authentication, Users that each is really theirs):', done.existing)
+}
+console.log(`\nDone: ${done.reps} reps added, ${done.updated} updated, ${done.accounts} sign-in accounts made, ${done.activities} activities added, ${done.stamps} stamps added. Nothing was deleted.\n`)

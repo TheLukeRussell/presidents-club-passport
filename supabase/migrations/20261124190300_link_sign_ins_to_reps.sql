@@ -2,14 +2,19 @@
 -- row-level security rules can say "your own" with reps.user_id. The browser
 -- never sets user_id: these functions do, inside the database.
 --
+-- Only a confirmed sign-in is ever linked: one whose email address has been
+-- proved by a link or code sent to it. An account someone made with a rep's
+-- address but never confirmed can't claim that rep's passport.
+--
 -- It works in either order:
---   - A rep who's already in reps signs in for the first time: the new
---     auth.users row finds their rep row.
---   - Someone signs in first and is added to reps later: the new rep row
---     finds their sign-in.
+--   - A rep's sign-in is confirmed (the importer creates it confirmed, or
+--     they confirm it): it finds their rep row.
+--   - A confirmed sign-in exists and the rep is added later: the new rep row
+--     finds it.
 --
 -- It also adds an optional "only reps on the roster can sign up" check, as a
--- Supabase Auth hook. It does nothing until you switch it on (see README).
+-- Supabase Auth hook. It's only needed if sign-ups are left on, and it does
+-- nothing until you switch it on (see README).
 --
 -- This migration only creates things. Nothing here drops, truncates or
 -- deletes.
@@ -29,6 +34,7 @@ begin
     select u.id into new.user_id
     from auth.users u
     where lower(btrim(u.email)) = new.email
+      and u.email_confirmed_at is not null
       and not exists (select 1 from public.reps r where r.user_id = u.id)
     limit 1;
   end if;
@@ -40,8 +46,10 @@ create trigger reps_link_existing_user
 before insert or update of email on public.reps
 for each row execute function public.reps_link_existing_user();
 
--- A new sign-in claims the rep row with its email, if there is one and it
--- isn't claimed yet.
+-- A sign-in claims the rep row with its email once it's confirmed, if that
+-- row isn't claimed yet. It runs inside Supabase Auth's own sign-up and sign-in
+-- writes, and an error here would block sign-in, so it never raises: a sign-in
+-- that already has a rep row is left alone.
 create function public.link_new_user_to_rep()
 returns trigger
 language plpgsql
@@ -49,16 +57,20 @@ security definer
 set search_path = ''
 as $$
 begin
+  if new.email_confirmed_at is null then
+    return new;
+  end if;
   update public.reps
   set user_id = new.id
   where email = lower(btrim(new.email))
-    and user_id is null;
+    and user_id is null
+    and not exists (select 1 from public.reps r where r.user_id = new.id);
   return new;
 end;
 $$;
 
 create trigger link_new_user_to_rep
-after insert on auth.users
+after insert or update of email_confirmed_at on auth.users
 for each row execute function public.link_new_user_to_rep();
 
 -- Optional: only let people sign up whose email is already in reps. Without

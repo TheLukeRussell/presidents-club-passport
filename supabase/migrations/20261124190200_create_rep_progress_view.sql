@@ -6,10 +6,12 @@
 --     where the program is run from.
 --   - Trainings count toward the four only when they're in person. Virtual
 --     ones are listed but have no minimum.
---   - Club Express needs both sessions. A stamp is unique per rep and
---     activity, so two Club Express stamps means both sessions.
+--   - Club Express needs both sessions, and only the two set sessions count:
+--     Club Express Fall on 2026-10-14 and Club Express Spring on 2027-06-17,
+--     the same pairs as CLUB_EXPRESS in src/config.ts. A stamp is unique per
+--     rep and activity, so two of them means both.
 --   - The minimums below mirror MINIMUMS in src/config.ts. Change both
---     together.
+--     together, and the Club Express sessions with CLUB_EXPRESS.
 --
 -- security_invoker means the view runs with the rights of whoever queries
 -- it, so row-level security still applies: a signed-in rep sees only their
@@ -33,7 +35,10 @@ counts as (
     count(*) filter (where a.type = 'virtual_training') as virtual_training,
     count(*) filter (where a.type = 'supplier_fair') as supplier_fair,
     count(*) filter (where a.type = 'hub_training') as hub_training,
-    count(*) filter (where a.type = 'club_express') as club_express,
+    count(*) filter (
+      where a.type = 'club_express'
+        and (a.title, a.event_date) in (('Club Express Fall', date '2026-10-14'), ('Club Express Spring', date '2027-06-17'))
+    ) as club_express,
     count(*) filter (where a.type = 'quota') as quota
   from public.stamps s
   join public.activities a on a.id = s.activity_id

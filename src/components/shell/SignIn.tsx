@@ -1,7 +1,7 @@
 // The live passport's front door: enter your work email, get an email with a
 // sign-in link and a 6-digit code, and use either. No passwords. Only reps on
-// the President's Club roster get in (the database checks), and once in, a
-// rep only ever sees their own passport.
+// the President's Club roster have an account to sign in to (the attendance
+// importer makes them), and once in, a rep only ever sees their own passport.
 
 import { useState, type FormEvent } from 'react'
 import { sendSignInEmail, verifySignInCode } from '../../data/live'
