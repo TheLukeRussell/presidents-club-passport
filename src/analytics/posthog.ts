@@ -81,11 +81,16 @@ function start(): Promise<PostHog | null> {
       disable_external_dependency_loading: true,
       before_send: (event) => scrubEvent(event),
     })
-    // The demo never speaks for a real rep: if this browser was last used
-    // signed in to the live passport, start the demo as someone new.
-    if (runtime.mode === 'demo' && ph.get_property('$user_state') === 'identified') ph.reset()
+    // The demo and the live passport never share an id. Going from one to
+    // the other in this browser starts as someone new, so demo activity is
+    // never merged into a rep when they sign in, and the demo never speaks
+    // for a rep who signed in here before.
+    const previous = ph.get_property('app_mode')
+    if ((previous && previous !== runtime.mode) || (runtime.mode === 'demo' && ph.get_property('$user_state') === 'identified')) ph.reset()
     ph.register({ app_mode: runtime.mode })
     posthog = ph
+    // "No thanks" may have been clicked while this was downloading.
+    if (consentNow() !== 'granted') forgetVisitor(ph)
     return ph
   })
   return starting
@@ -118,11 +123,17 @@ function sync() {
       ph.register({ app_mode: runtime.mode })
     })
   } else if (consent === 'denied' && posthog) {
-    posthog.reset({ resetDeviceID: true })
-    posthog.opt_out_capturing()
-    posthog.set_config({ disable_persistence: true })
-    clearStoredIds()
+    forgetVisitor(posthog)
   }
+}
+
+// No thanks: a new id and device id, opted out, nothing stored any more,
+// and what was stored cleared.
+function forgetVisitor(ph: PostHog) {
+  ph.reset({ resetDeviceID: true })
+  ph.opt_out_capturing()
+  ph.set_config({ disable_persistence: true })
+  clearStoredIds()
 }
 
 if (typeof window !== 'undefined' && runtime.posthog) {

@@ -84,11 +84,19 @@ describe('readAttendance', () => {
         ['a@', 'A', '', '', 'supplier_fair', 'Fall Supplier Fair', '', '', '', '2026-09-24'],
         ['jo smith@example.com', 'Jo', '', '', 'supplier_fair', 'Fall Supplier Fair', '', '', '', '2026-09-24'],
         ['@example.com', 'X', '', '', 'supplier_fair', 'Fall Supplier Fair', '', '', '', '2026-09-24'],
+        // Ones Supabase Auth would refuse when the importer makes the account.
+        ['jo@example.com;', 'Jo', '', '', 'supplier_fair', 'Fall Supplier Fair', '', '', '', '2026-09-24'],
+        ['jo@example.com.', 'Jo', '', '', 'supplier_fair', 'Fall Supplier Fair', '', '', '', '2026-09-24'],
+        ['josé@example.com', 'José', '', '', 'supplier_fair', 'Fall Supplier Fair', '', '', '', '2026-09-24'],
+        ['mailto:ko@example.com', 'Ko', '', '', 'supplier_fair', 'Fall Supplier Fair', '', '', '', '2026-09-24'],
+        ['jo@localhost', 'Jo', '', '', 'supplier_fair', 'Fall Supplier Fair', '', '', '', '2026-09-24'],
+        // And one that's fine.
+        ['jo.o-neil+pcp@example.co.uk', 'Jo', '', '', 'supplier_fair', 'Fall Supplier Fair', '', '', '', '2026-09-24'],
       ),
       TODAY,
     )
-    expect(rows).toEqual([])
-    expect(skipped).toHaveLength(3)
+    expect(rows.map((r) => r.email)).toEqual(['jo.o-neil+pcp@example.co.uk'])
+    expect(skipped).toHaveLength(8)
     expect(skipped[0]).toMatch(/isn’t an email address it can use/)
   })
 

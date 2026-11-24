@@ -117,7 +117,8 @@
   .passport .picker {
     grid-area: bar;
     position: sticky;
-    bottom: var(--bar-pad);
+    /* Moves up with the bar while the cookie banner shows. */
+    bottom: calc(var(--bar-pad) + var(--consent-space, 0px));
     z-index: calc(var(--z-sticky) + 1);
     align-self: stretch;
     justify-self: center;

@@ -53,10 +53,12 @@ const EXTRA_HEADERS: Record<string, string> = {
 
 const text = (value: unknown) => String(value ?? '').trim()
 
-// The table's own email rule (something either side of one @), plus no
-// spaces, so a row the database would refuse is left out here instead of
-// stopping --apply part way.
-const EMAIL = /^[^\s@]+@[^\s@]+$/
+// An email both the reps table and Supabase Auth will take (Auth checks the
+// address when the importer makes the rep's sign-in account), so a row
+// either would refuse is left out here instead of stopping --apply part
+// way. Plain ASCII letters, digits and the usual symbols, one @, and a
+// domain of letters, digits and hyphens.
+const EMAIL = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/
 
 // With no type column, the title is the only clue, so only clear words count,
 // as whole words: "Fairfield partner training" isn't a fair and "GitHub

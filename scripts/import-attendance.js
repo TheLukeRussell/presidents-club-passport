@@ -210,7 +210,7 @@ const plan = planImport(read.rows, current)
 console.log(`\nReps: ${plan.newReps.length} new, ${plan.changedReps.length} updated, ${plan.sameReps} already up to date`)
 console.log(`Activities: ${plan.newActivities.length} new, ${plan.sameActivities} already there`)
 console.log(`Stamps: ${plan.newStamps.length} new, ${plan.sameStamps} already there`)
-console.log(`Sign-in accounts: ${plan.accounts.length} to make (confirmed, no password, no email sent)`)
+console.log(`Sign-in accounts: ${plan.accounts.length} reps not linked to one yet; --apply makes them (confirmed, no password, no email sent)`)
 show('New reps:', plan.newReps.map((r) => `+ ${r.email}  ${r.name}${r.team ? `  (${r.team})` : ''}`))
 show('Rep changes:', plan.changedReps.map((c) => `~ ${describeChange(c)}`))
 show('New activities:', plan.newActivities.map((a) => `+ ${describeActivity(a)}`))
@@ -234,7 +234,7 @@ if (!apply) {
 // Nothing here deletes. If something fails part way, run it again: whatever
 // already made it in is skipped.
 
-const done = { reps: 0, updated: 0, accounts: 0, existing: [], activities: 0, stamps: 0 }
+const done = { reps: 0, updated: 0, accounts: 0, existing: [], refused: [], activities: 0, stamps: 0 }
 try {
   const repIds = new Map(current.reps.map((r) => [r.email, r.id]))
   for (const part of chunks(plan.newReps)) {
@@ -251,11 +251,13 @@ try {
   // account to its rep row as it's made. An address that already has an
   // account (someone signed it up while sign-ups were on, say) is left
   // alone and listed, so it can be checked in Authentication, Users.
+  // Any other refusal is listed at the end rather than stopping the import,
+  // so everyone else's stamps still go in.
   for (const email of plan.accounts) {
     const { error } = await db.auth.admin.createUser({ email, email_confirm: true })
     if (!error) done.accounts += 1
     else if (error.code === 'email_exists' || /already been registered|already exists/i.test(error.message)) done.existing.push(email)
-    else throw new Error(`Making a sign-in account for ${email}: ${error.message}`)
+    else done.refused.push(`${email}: ${error.message}`)
   }
 
   const activityIds = new Map(plan.activityIds)
@@ -289,6 +291,12 @@ try {
 }
 
 if (done.existing.length) {
-  show('Already had a sign-in account (check in Supabase, Authentication, Users that each is really theirs):', done.existing)
+  show(
+    'Already had a sign-in account, so none was made. In Supabase, Authentication, Users, check each one. If it shows "Waiting for verification" or you don\u2019t recognise it, delete that user and run the importer again: it makes a fresh confirmed account, and an unconfirmed one can\u2019t sign in while sign-ups are off.',
+    done.existing,
+  )
+}
+if (done.refused.length) {
+  show('Supabase refused to make these sign-in accounts. Fix the address and run again:', done.refused)
 }
 console.log(`\nDone: ${done.reps} reps added, ${done.updated} updated, ${done.accounts} sign-in accounts made, ${done.activities} activities added, ${done.stamps} stamps added. Nothing was deleted.\n`)

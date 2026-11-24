@@ -19,15 +19,19 @@ function storedConsent(): Consent {
   }
 }
 
-// If storage is blocked, the answer lasts for this visit only.
+// If storage can't be written (blocked, or full), the answer lasts for this
+// visit only.
 let memory: Consent | null = null
+let unsaved = false
 
 export function setConsent(value: 'granted' | 'denied') {
   memory = value
   try {
     window.localStorage.setItem(KEY, value)
+    unsaved = false
   } catch {
-    // Blocked: memory has it for now.
+    // Blocked or full: memory has it for now.
+    unsaved = true
   }
   notify()
 }
@@ -44,7 +48,7 @@ function readable(): boolean {
 }
 export const consentNow = (): Consent => {
   if (typeof window === 'undefined') return 'pending'
-  return readable() ? storedConsent() : (memory ?? 'pending')
+  return readable() && !unsaved ? storedConsent() : (memory ?? 'pending')
 }
 
 // Hears about every change: from this tab's banner, or another tab's.

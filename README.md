@@ -132,13 +132,7 @@ Club Express rows have to be one of the two sessions in `src/config.ts`, dated t
 
 PostHog reads the passport data through `posthog_reader`, a login that can only read. It sees four views in the `posthog` schema (`reps`, `activities`, `stamps`, `rep_progress`), with every rep's data and no emails.
 
-1. Give it a password: a long random one of your own, never saved in the repo. Set it so the password doesn't land in Supabase's database logs, which record this kind of statement in full by default. Either:
-   - from `psql`, using the connection string from Supabase's **Connect** dialog, run `\password posthog_reader` and type it when asked (only a hash is sent), or
-   - in the Supabase SQL Editor, run both lines together:
-     ```sql
-     set log_statement = 'none';
-     alter role posthog_reader with password 'a-long-random-password';
-     ```
+1. Give it a password: a long random one of your own, never saved in the repo. Set it from `psql`, not the SQL Editor: Supabase's database logs record a password typed into an `alter role` statement in full. Connect with the connection string from Supabase's **Connect** dialog, run `\password posthog_reader`, and type the password when asked. `psql` sends only a hash, so the password itself never reaches the server or its logs.
 2. Copy the connection details from Supabase's **Connect** dialog, under **Session pooler** (IPv4, port 5432).
 3. In the PostHog project, go to **Data pipelines, Sources, New source, Postgres** and enter:
    - Host: the session pooler host

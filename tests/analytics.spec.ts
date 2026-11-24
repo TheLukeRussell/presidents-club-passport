@@ -114,6 +114,16 @@ test('the cookie question never covers the page controls', async ({ page }) => {
   await expect(page).toHaveURL(/page=[45]$/)
 })
 
+test('answering the cookie question doesn’t move the page', async ({ page }) => {
+  await demoWithPostHog(page)
+  await page.goto('./#/standings')
+  await expect(page.locator('.consent')).toBeVisible()
+  const before = await page.evaluate(() => window.scrollY)
+  await page.getByRole('button', { name: 'Allow analytics' }).click()
+  await expect(page.getByRole('button', { name: 'Analytics settings (on)' })).toBeFocused()
+  expect(await page.evaluate(() => window.scrollY)).toBe(before)
+})
+
 // A rep with everything done by late June: four in-person trainings, two
 // fairs, two Hub courses, both Club Express sessions and the quota.
 const DONE: Fake = {

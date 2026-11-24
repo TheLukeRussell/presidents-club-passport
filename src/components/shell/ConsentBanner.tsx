@@ -33,7 +33,8 @@ export function ConsentBanner() {
     const target = focusNext.current
     if (!target) return
     focusNext.current = null
-    ;(target === 'heading' ? heading : link).current?.focus()
+    // preventScroll: moving focus mustn't jump the page down to the footer.
+    ;(target === 'heading' ? heading : link).current?.focus({ preventScroll: true })
   })
 
   // Keep room for the banner while it shows, and follow its height as it

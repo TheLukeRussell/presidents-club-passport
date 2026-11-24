@@ -65,6 +65,14 @@ create table public.activities (
   -- A Hub course is one row however many days people finish it on, and the
   -- quota has no event day. Everything else is a dated event.
   constraint activities_date_matches_type check ((type in ('hub_training', 'quota')) = (event_date is null)),
+  -- Club Express is two set sessions, so those are the only two it can be.
+  -- The same pairs as CLUB_EXPRESS in src/config.ts: change both together.
+  -- Without this, a session added by hand on the wrong day would count
+  -- early in the passport, which matches sessions by name or day.
+  constraint activities_club_express_sessions check (
+    type <> 'club_express'
+    or (title, event_date) in (('Club Express Fall', date '2026-10-14'), ('Club Express Spring', date '2027-06-17'))
+  ),
   -- One row per event, so the importer can safely run twice. NULLS NOT
   -- DISTINCT makes two undated rows with the same type and title (the same
   -- Hub course) clash too, which plain UNIQUE would let through.

@@ -33,12 +33,18 @@ export interface AuthValue {
   signOut: () => Promise<void>
   // Tries the sign-in service again after 'unavailable'.
   retry: () => void
+  // Goes up by one each time someone signs in, the same rep again
+  // included, so anything tied to one sign-in (like a load error) can tell
+  // a fresh one from the last.
+  signIns: number
 }
 
 const AuthContext = createContext<AuthValue | null>(null)
 
-// Read once, before anything tidies the address bar.
-const openedFromLink = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('code')
+// Whether the page was opened from an email link: a ?code= is waiting in
+// the address for Supabase to swap for a session.
+const hasSignInCode = () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('code')
+const openedFromLink = hasSignInCode()
 
 // When an email link fails (expired, already used), Supabase sends the rep
 // back with the reason in the address: ?error=... and, for older links,
@@ -74,25 +80,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const byCode = useRef(false)
   const current = useRef<string | null>(null)
   const [attempt, setAttempt] = useState(0)
+  const [signIns, setSignIns] = useState(0)
+  // A new sign-in: someone signed in who wasn't a moment ago.
+  const signedIn = (id: string) => {
+    if (current.current === id) return false
+    current.current = id
+    setSignIns((n) => n + 1)
+    return true
+  }
 
   useEffect(() => {
     if (!live) return
     let cancelled = false
+    // Read now rather than once at load: if the first try couldn't reach
+    // Supabase, the code is still there for Try again to use.
+    const fromLink = hasSignInCode()
     // Supabase swaps a ?code= for a session as it starts up, and
     // getSession waits for that.
     currentSession()
       .then((session) => {
         if (cancelled) return
+        // The code has done its job either way now, so take it out of the
+        // address (and out of anything that reads the URL later).
+        forgetSignInCode()
         if (session) {
-          current.current = session.user.id
+          signedIn(session.user.id)
           setUserId(session.user.id)
           setEmail(session.user.email ?? null)
           setStatus('signed-in')
           // Only a session the link really made counts as signing in by link.
-          if (openedFromLink && attempt === 0 && session.user.id !== signedInBefore) setSignedInBy('link')
+          if (fromLink && session.user.id !== signedInBefore) setSignedInBy('link')
         } else {
           setStatus('signed-out')
-          if (openedFromLink) {
+          if (fromLink) {
             setLinkProblem(
               'That sign-in link didn’t work here. It only works in the browser you asked for it in, and only once. Type the 6-digit code from the same email instead, or ask for a new one.',
             )
@@ -100,9 +120,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       })
       .catch(() => {
+        // Supabase couldn't be reached, so the code (if any) is kept for a retry.
         if (!cancelled) setStatus('unavailable')
       })
-      .finally(forgetSignInCode)
 
     // Sign-ins with the code, sign-outs (here or in another tab) and token
     // refreshes. Supabase also reports SIGNED_IN when a tab regains focus, so
@@ -117,10 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setStatus('signed-out')
         return
       }
-      if (current.current !== session.user.id) {
-        current.current = session.user.id
-        if (byCode.current) setSignedInBy('code')
-      }
+      if (signedIn(session.user.id) && byCode.current) setSignedInBy('code')
       byCode.current = false
       setUserId(session.user.id)
       setEmail(session.user.email ?? null)
@@ -159,7 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ status, userId, email, linkProblem, signedInBy, noteCodeSignIn, signOut, retry }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ status, userId, email, linkProblem, signedInBy, noteCodeSignIn, signOut, retry, signIns }}>{children}</AuthContext.Provider>
   )
 }
 

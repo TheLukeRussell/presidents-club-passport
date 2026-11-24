@@ -99,9 +99,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const auth = useAuth()
   const userId = live ? auth.userId : null
   const [loaded, setLoaded] = useState<Loaded | null>(null)
-  // An error belongs to whoever was signed in when it happened, so signing
-  // in again (as anyone) starts clean.
-  const [failure, setFailure] = useState<{ user: string | null; message: string } | null>(null)
+  // An error belongs to the sign-in it happened under, so signing in again
+  // (as anyone, the same rep included) starts clean.
+  const [failure, setFailure] = useState<{ owner: string; message: string } | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [preview, setPreview] = useState<Preview>('live')
 
@@ -114,6 +114,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [landing, setLanding] = useState<ReadonlySet<string>>(new Set())
   const [openedGaps, setOpenedGaps] = useState<OpenedGaps>({ key: '', spans: [] })
 
+  const owner = live ? `${userId ?? ''}#${auth.signIns}` : 'demo'
   useEffect(() => {
     // The live passport has nothing to load until someone signs in.
     if (live && !userId) return
@@ -148,14 +149,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return
-        setFailure({ user: userId, message: err instanceof DataError ? err.message : 'Something went wrong reading the passport data.' })
+        setFailure({ owner, message: err instanceof DataError ? err.message : 'Something went wrong reading the passport data.' })
       })
     return () => controller.abort()
-  }, [attempt, live, userId])
+  }, [attempt, live, userId, owner])
   const unavailable = live && auth.status === 'unavailable'
   const error = unavailable
     ? 'Couldn’t reach the sign-in service. Check the connection and try again.'
-    : failure && failure.user === userId
+    : failure && failure.owner === owner
       ? failure.message
       : null
 

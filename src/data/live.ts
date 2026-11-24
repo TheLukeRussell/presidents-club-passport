@@ -9,6 +9,7 @@
 
 import type { AuthChangeEvent, Session, SupabaseClient } from '@supabase/supabase-js'
 import { runtime } from '../runtime'
+import { stampFrom } from '../lib/model'
 import { activityOf, isActivityType } from './activity-types'
 import { DataError } from './source'
 import type { PassportData, StampRow } from './types'
@@ -138,7 +139,8 @@ export async function loadLiveData(signal?: AbortSignal): Promise<PassportData |
   // imported once with no format (so virtual) and again as in person is two
   // rows here but one stamp there, so keep the in-person one.
   const byStamp = new Map<string, StampRow>()
-  const stampKey = (row: StampRow) => `${row.activity}|${row.date}|${row.event.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+  // The same id the passport gives a stamp (lib/model.ts), so the two agree.
+  const stampKey = (row: StampRow) => stampFrom(row).id
   const rows: StampRow[] = []
   for (const s of (stamps.data ?? []) as unknown as StampFromDb[]) {
     if (!s.activity || !isActivityType(s.activity.type)) continue

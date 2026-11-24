@@ -25,4 +25,6 @@
 }
 
 .signin__sent { color: var(--color-ink-2); font-size: var(--text-sm); }
-.signin__sent:empty { display: none; }
+/* Empty until a new email goes, but always there, so screen readers are
+   already listening when the message arrives. It takes no room meanwhile. */
+.signin__sent:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
