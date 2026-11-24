@@ -19,6 +19,8 @@ dist
 *.xlsx
 .env
 .env.*
+# The template has no secrets in it, so it is committed.
+!.env.example
 # npm run import writes the real sheet here: real names, public repo.
 public/data/local.json
 
