@@ -60,7 +60,7 @@ npx supabase db push       # applies supabase/migrations
 
 To regenerate it from the sample data: `npm run seed`. That only writes the file. To load it, paste it into the SQL Editor and run it, once the migrations are in. Skip this on a project that will hold real reps.
 
-The sample stamps run from July 2026 to June 2027, and the live passport only counts stamps dated today or earlier, so more of them count as the year goes on.
+The sample stamps run from July 2026 to June 2027: 353 of the 605 are dated after November 24, 2026. The live passport and `rep_progress` only count stamps dated today or earlier, so more of them count as the year goes on. A PostHog insight built straight on `posthog.stamps` sees them all, so filter on `earned_at` up to today there.
 
 ### 4. Set up sign-in
 
@@ -130,12 +130,15 @@ Club Express rows have to be one of the two sessions in `src/config.ts`, dated t
 
 ### 7. Link Supabase in PostHog
 
-PostHog reads the passport data through `posthog_reader`: a read-only login that sees four views in the `posthog` schema (`reps`, `activities`, `stamps`, `rep_progress`), with every rep's data and no emails.
+PostHog reads the passport data through `posthog_reader`, a login that can only read. It sees four views in the `posthog` schema (`reps`, `activities`, `stamps`, `rep_progress`), with every rep's data and no emails.
 
-1. Give it a password. In the Supabase SQL Editor, run this with a long random password of your own. Don't save it in the repo.
-   ```sql
-   alter role posthog_reader with password 'a-long-random-password';
-   ```
+1. Give it a password: a long random one of your own, never saved in the repo. Set it so the password doesn't land in Supabase's database logs, which record this kind of statement in full by default. Either:
+   - from `psql`, using the connection string from Supabase's **Connect** dialog, run `\password posthog_reader` and type it when asked (only a hash is sent), or
+   - in the Supabase SQL Editor, run both lines together:
+     ```sql
+     set log_statement = 'none';
+     alter role posthog_reader with password 'a-long-random-password';
+     ```
 2. Copy the connection details from Supabase's **Connect** dialog, under **Session pooler** (IPv4, port 5432).
 3. In the PostHog project, go to **Data pipelines, Sources, New source, Postgres** and enter:
    - Host: the session pooler host
@@ -167,9 +170,13 @@ Five events, and nothing until the visitor says yes. Nothing that names a rep is
 | `signed_in` | A rep signs in (not on a reload) | `method`: `link` or `code` |
 | `stamp_viewed` | A stamp's detail slip opens | `activity_type`, `activity_title`, `supplier`, `earned_at`, `page` |
 | `activity_clicked` | A checklist row is tapped | `activity_type`, `counted`, `minimum`, `met`, `from` |
-| `passport_completed` | A rep has all five minimums, once per rep per browser | `as_of`, `stamps_total`, `source` |
+| `passport_completed` | Live: a rep has all five minimums, sent once per rep per browser. Demo: each time a Record takes a sample rep to all five. | Live: `as_of`, `stamps_total`, `source` = `supabase`. Demo: `source` = `demo`, `activity_type`. |
 
 Every event also has `app_mode` (`demo` or `live`). `activity_type` uses the same names as the `activities.type` column.
+
+Alongside those:
+- **Identity.** A signed-in rep is identified by their Supabase user id, with their `team` as a person property. That means PostHog's own `$identify` and `$set` events, and `$user_id` on their events. Their email and name are never sent, but dashboards can join the id to `reps` through the Postgres source, so a rep's activity can be tied to their name there. The consent banner says so in the live passport. Demo visitors stay anonymous.
+- **What every PostHog event carries anyway:** a random device id, browser, operating system, screen size and the page address (scrubbed as above). PostHog also records the IP address on its side unless **Discard client IP data** is on in the project settings.
 
 ## Running it
 

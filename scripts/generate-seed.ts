@@ -160,6 +160,10 @@ const sql = `-- Test data for a new Supabase project: the demo's made-up reps an
 --
 -- It only inserts, and skips anything that's already there, so it's safe to
 -- run twice. It never updates or deletes. Run it after the migrations.
+--
+-- The stamps keep the sample's dates, July 2026 to June 2027, so some are
+-- dated ahead. rep_progress and the passport only count a stamp once its
+-- day has come.
 
 begin;
 

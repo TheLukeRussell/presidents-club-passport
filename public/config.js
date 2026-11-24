@@ -3,7 +3,7 @@
 //
 // It's committed blank on purpose. With it blank, the site runs the demo on
 // the sample data exactly as before, so GitHub Pages never breaks. The deploy
-// workflow fills it in from the repository's Actions variables (see README,
+// workflow fills it in from the repository's Actions secrets (see README,
 // "Fill in config.js"), so the real values never sit in the repo.
 //
 // Only public values go here: the Supabase project URL, its anon (publishable)
