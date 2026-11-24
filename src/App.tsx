@@ -5,6 +5,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
+import { useAnalyticsIdentity } from './analytics/useAnalyticsIdentity'
+import { ConsentBanner } from './components/shell/ConsentBanner'
 import { DemoPanel } from './components/shell/DemoPanel'
 import { LoadState } from './components/shell/LoadState'
 import { TopBar } from './components/shell/TopBar'
@@ -56,6 +58,7 @@ export function App() {
   const [demoOpen, setDemoOpen] = useState(false)
   const home = app.ready ? `/passport/${app.ready.viewAs.id}` : '/passport'
   const { pathname } = useLocation()
+  useAnalyticsIdentity()
 
   // A new screen starts at the top. Opening a passport from far down the
   // board used to leave the page scrolled, with the top bar out of view.
@@ -117,6 +120,7 @@ export function App() {
           <Route path="*" element={app.ready ? <Navigate to={home} replace /> : <LoadState screen="passport" />} />
         </Routes>
       </main>
+      <ConsentBanner />
     </div>
   )
 }

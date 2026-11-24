@@ -36,12 +36,33 @@ const AuthContext = createContext<AuthValue | null>(null)
 // Read once, before anything tidies the address bar.
 const openedFromLink = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('code')
 
+// When an email link fails (expired, already used), Supabase sends the rep
+// back with the reason in the address: ?error=... and, for older links,
+// #error=...&sb= after the #. The router owns the # and would quietly throw
+// that away as an unknown page, so read it and tidy it up first, before the
+// router or Supabase sees it. Runs once, as the app loads.
+function takeLinkError(): string | null {
+  const url = new URL(window.location.href)
+  const hash = new URLSearchParams(url.hash.replace(/^#/, ''))
+  const inHash = hash.has('error') || hash.has('error_code')
+  const code = url.searchParams.get('error_code') ?? (inHash ? hash.get('error_code') : null)
+  const error = url.searchParams.get('error') ?? (inHash ? hash.get('error') : null)
+  if (!code && !error) return null
+  for (const key of ['error', 'error_code', 'error_description', 'sb']) url.searchParams.delete(key)
+  if (inHash) url.hash = ''
+  window.history.replaceState(window.history.state, '', url)
+  return code === 'otp_expired'
+    ? 'That sign-in link has expired or was already used. Links work once, for a short time. Ask for a new one below, or type the 6-digit code from the newest email.'
+    : 'That sign-in link didn’t work. Ask for a new one below, or type the 6-digit code from the email.'
+}
+const linkError = typeof window !== 'undefined' && runtime.mode === 'live' ? takeLinkError() : null
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const live = runtime.mode === 'live'
   const [status, setStatus] = useState<AuthStatus>(live ? 'checking' : 'off')
   const [userId, setUserId] = useState<string | null>(null)
   const [email, setEmail] = useState<string | null>(null)
-  const [linkProblem, setLinkProblem] = useState<string | null>(null)
+  const [linkProblem, setLinkProblem] = useState<string | null>(linkError)
   const [signedInBy, setSignedInBy] = useState<AuthValue['signedInBy']>(null)
   const byCode = useRef(false)
   const current = useRef<string | null>(null)

@@ -18,6 +18,11 @@ function explain(error: unknown, sending: boolean): string {
   if (/rate limit|too many|security purposes|only request this after/i.test(message)) {
     return 'Too many sign-in emails just now. Wait a minute, then try again.'
   }
+  // Supabase's built-in email only sends to the project's own team, two an
+  // hour, until the project has its own email provider (README).
+  if (/not authorized/i.test(message)) {
+    return 'The passport can’t email that address yet: its email service is still in test mode. Ask the program team.'
+  }
   if (/expired|invalid|otp/i.test(message) && !sending) return 'That code didn’t work. It may have expired: codes last an hour, and only the newest one works.'
   if (/fetch|network/i.test(message)) return 'Couldn’t reach the sign-in service. Check the connection and try again.'
   if (/signups not allowed|not allowed for this instance/i.test(message)) {

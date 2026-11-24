@@ -20,6 +20,8 @@ import { todayInProgram } from '../lib/today'
 import { runtime } from '../runtime'
 import { useAuth } from './Auth'
 import { celebratedBefore, noteCelebrated, readSaved, writeSaved, type SavedDemo } from './storage'
+import { track, trackCompletion } from '../analytics/posthog'
+import { activityTypeOf } from '../data/activity-types'
 
 // signed-out and not-on-roster only happen in the live passport.
 export type LoadStatus = 'loading' | 'error' | 'empty' | 'ready' | 'signed-out' | 'not-on-roster'
@@ -131,9 +133,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (live && next.user && next.onRoster) {
           const model = buildModel(next.data)
           const rep = model.reps[0]
-          if (rep && repStats(model, rep, { today: next.today }).qualified && !celebratedBefore(next.user)) {
-            noteCelebrated(next.user)
-            setLanding((current) => new Set([...current, landingKey(rep.email, 'qualified')]))
+          const stats = rep ? repStats(model, rep, { today: next.today }) : null
+          if (rep && stats?.qualified) {
+            // passport_completed, once per rep per browser (see analytics).
+            trackCompletion(next.user, { stamps_total: stats.total, as_of: next.today, source: 'supabase' })
+            if (!celebratedBefore(next.user)) {
+              noteCelebrated(next.user)
+              setLanding((current) => new Set([...current, landingKey(rep.email, 'qualified')]))
+            }
           }
         }
       })
@@ -240,6 +247,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         (current) =>
           new Set([...current, ...emails.map((email) => landingKey(email, activity)), ...qualified.map((email) => landingKey(email, 'qualified'))]),
       )
+      // The demo's version of passport_completed: a Record that took someone
+      // to all five. Sample reps only, so nothing about who.
+      for (let i = 0; i < qualified.length; i++) track('passport_completed', { source: 'demo', activity_type: activityTypeOf(activity, 'in person') })
       setUndo(null)
       setSaved((s) => ({
         ...s,

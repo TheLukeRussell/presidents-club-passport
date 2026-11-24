@@ -5,7 +5,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router'
+import { track } from '../../analytics/posthog'
+import { usePassportViewed } from '../../analytics/usePassportViewed'
 import { ACTIVITIES, type Activity } from '../../config'
+import { activityTypeOf } from '../../data/activity-types'
 import { BACK_COVER, CHECKLIST_PAGE, DATA_PAGE, PAGES, SEAL_PAGE, pageForActivity, pageForView, pagesInView, parsePage, viewCount, viewForPage, viewLabel } from '../../lib/book'
 import { findRep, type Stamp } from '../../lib/model'
 import { landingKey } from '../../lib/demo'
@@ -67,6 +70,8 @@ export function PassportScreen() {
   const page = parsePage(params.get('page'))
   const view = viewForPage(page, spread)
   const last = viewCount(spread) - 1
+
+  usePassportViewed(rep?.id, board, viewAs.id, page)
 
   const goToView = useCallback(
     (next: number) => {
@@ -195,7 +200,24 @@ export function PassportScreen() {
       // is being pressed the checklist holds quota back. On a phone it never
       // needs to: page 7 isn't showing during the press.
       const holdQuota = landing('quota') && pagesInView(view, spread).includes(SEAL_PAGE)
-      return <ChecklistPage rep={rep} stats={stats} ctx={ctx} still={still} holdQuota={holdQuota} onGo={goToPage} />
+      // activity_clicked: a checklist row, the one place an activity is a
+      // button. Named by the stamp type its minimum counts, the same names
+      // as Supabase's activities.type.
+      const onGo = (target: number) => {
+        const activity = PAGES[target - 1]?.activity
+        if (activity) {
+          const progress = stats.progress[activity]
+          track('activity_clicked', {
+            activity_type: activityTypeOf(activity, 'in person'),
+            counted: progress.counted,
+            minimum: progress.minimum,
+            met: progress.met,
+            from: 'checklist',
+          })
+        }
+        goToPage(target)
+      }
+      return <ChecklistPage rep={rep} stats={stats} ctx={ctx} still={still} holdQuota={holdQuota} onGo={onGo} />
     }
     if (p === SEAL_PAGE) {
       return <SealPage rep={rep} stats={stats} ctx={ctx} landing={landing('quota')} onLanded={onLanded.quota} still={still} />
@@ -210,7 +232,17 @@ export function PassportScreen() {
         ctx={ctx}
         landing={landing(activity)}
         onLanded={onLanded[activity]}
-        onOpen={setDetail}
+        onOpen={(stamp) => {
+          // stamp_viewed: the detail slip opens. What it is, not who has it.
+          track('stamp_viewed', {
+            activity_type: activityTypeOf(stamp.activity, stamp.format),
+            activity_title: stamp.event,
+            supplier: stamp.supplier || null,
+            earned_at: stamp.date,
+            page: p,
+          })
+          setDetail(stamp)
+        }}
         still={still}
       />
     )
