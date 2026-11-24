@@ -41,7 +41,6 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           POSTHOG_PROJECT_KEY: ${{ secrets.POSTHOG_PROJECT_KEY }}
           POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
-          ONETRUST_ANALYTICS_GROUP: ${{ secrets.ONETRUST_ANALYTICS_GROUP }}
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

@@ -1,11 +1,10 @@
-// The passport's own cookie question, for when OneTrust isn't on the page.
-// It only appears when PostHog is set up in config.js, and nothing is sent
-// to PostHog until someone says yes. Once they've answered, a small
-// "Analytics settings" link at the foot of the page lets them change it.
-// With OneTrust on the page, OneTrust asks instead and this stays out of the way.
+// The passport's cookie question. It only appears when PostHog is set up in
+// config.js, and nothing is sent to PostHog until someone says yes. Once
+// they've answered, a small "Analytics settings" link at the foot of the
+// page lets them change it.
 
 import { useState, useSyncExternalStore } from 'react'
-import { consentNow, onConsentChange, setConsent, usesOneTrust, type Consent } from '../../analytics/consent'
+import { consentNow, onConsentChange, setConsent, type Consent } from '../../analytics/consent'
 import { runtime } from '../../runtime'
 import './ConsentBanner.css'
 
@@ -18,7 +17,7 @@ const pending = (): Consent => 'pending'
 export function ConsentBanner() {
   const consent = useSyncExternalStore(subscribe, consentNow, pending)
   const [reopened, setReopened] = useState(false)
-  if (!runtime.posthog || usesOneTrust()) return null
+  if (!runtime.posthog) return null
 
   const answer = (value: 'granted' | 'denied') => {
     setConsent(value)

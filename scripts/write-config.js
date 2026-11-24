@@ -6,7 +6,6 @@
 //   SUPABASE_ANON_KEY      the anon / publishable key (never the service role key)
 //   POSTHOG_PROJECT_KEY    phc_...
 //   POSTHOG_HOST           optional, defaults to https://us.i.posthog.com
-//   ONETRUST_ANALYTICS_GROUP  optional, defaults to C0002
 //
 // Any left unset stay blank, and blank means the site runs the demo, so a
 // deploy without secrets still works. It never prints a value: Actions logs
@@ -34,7 +33,6 @@ const config = {
   supabaseAnonKey: env('SUPABASE_ANON_KEY'),
   posthogKey: env('POSTHOG_PROJECT_KEY'),
   posthogHost: env('POSTHOG_HOST') || (env('POSTHOG_PROJECT_KEY') ? 'https://us.i.posthog.com' : ''),
-  onetrustAnalyticsGroup: env('ONETRUST_ANALYTICS_GROUP') || 'C0002',
 }
 
 // The checks that matter most: nothing secret ends up in a file every

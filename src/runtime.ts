@@ -16,7 +16,6 @@ export interface PassportConfig {
   supabaseAnonKey?: string
   posthogKey?: string
   posthogHost?: string
-  onetrustAnalyticsGroup?: string
 }
 
 declare global {
@@ -29,7 +28,6 @@ export interface Runtime {
   mode: 'demo' | 'live'
   supabase: { url: string; anonKey: string } | null
   posthog: { key: string; host: string } | null
-  onetrustGroup: string
   // Why live mode is off when config.js looks filled in, for the console.
   problem: string | null
 }
@@ -64,7 +62,6 @@ export function readRuntime(config: PassportConfig | undefined, search: string):
     mode: supabase && !demoAsked ? 'live' : 'demo',
     supabase,
     posthog: key ? { key, host } : null,
-    onetrustGroup: text(config?.onetrustAnalyticsGroup) || 'C0002',
     problem,
   }
 }

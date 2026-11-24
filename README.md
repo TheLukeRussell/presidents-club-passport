@@ -87,7 +87,6 @@ Leave `public/config.js` blank in git. The deploy fills it in from Actions secre
 | `SUPABASE_ANON_KEY` | Project Settings, API Keys: the **anon** / publishable key |
 | `POSTHOG_PROJECT_KEY` | The PostHog project key (`phc_…`) |
 | `POSTHOG_HOST` | `https://us.i.posthog.com` (US Cloud) |
-| `ONETRUST_ANALYTICS_GROUP` | Optional. Defaults to `C0002`. |
 
 The next deploy picks them up. Pages only deploys from `main`, on a push or with **Actions, Deploy to Pages, Run workflow**. With no secrets set, the deploy writes a blank `config.js` and the site runs the demo.
 
@@ -144,10 +143,6 @@ PostHog people are identified by their Supabase user id, which is `user_id` in t
 - **Billing limit.** Limits are set per product for the whole organization, so an org admin should set one.
 
 The code already turns off autocapture, pageviews, session replay, surveys, heatmaps, feature flags and outside scripts, whatever the project's own settings say.
-
-### OneTrust (optional)
-
-By default the passport asks about analytics with its own small banner. To use OneTrust instead, paste its script into `index.html` where the comment marks the OneTrust hook. The passport then hides its banner and turns analytics on only while OneTrust's analytics group is allowed (`C0002` by default, or `ONETRUST_ANALYTICS_GROUP`). OneTrust licenses scripts per domain, so the `github.io` address needs to be in the OneTrust setup.
 
 ## What PostHog gets
 

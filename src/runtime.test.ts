@@ -46,7 +46,6 @@ describe('readRuntime', () => {
     expect(readRuntime({}, '').posthog).toBeNull()
     expect(readRuntime(filled, '').posthog).toEqual({ key: 'phc_test', host: 'https://us.i.posthog.com' })
     expect(readRuntime({ ...filled, posthogHost: 'https://eu.i.posthog.com' }, '').posthog?.host).toBe('https://eu.i.posthog.com')
-    expect(readRuntime({}, '').onetrustGroup).toBe('C0002')
   })
 })
 

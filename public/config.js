@@ -15,7 +15,4 @@ window.PASSPORT_CONFIG = {
   supabaseAnonKey: '',
   posthogKey: '',
   posthogHost: '',
-  // The OneTrust category that means analytics on your site, if OneTrust is
-  // on the page. C0002 is OneTrust's usual "Performance" group.
-  onetrustAnalyticsGroup: 'C0002',
 }
