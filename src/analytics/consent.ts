@@ -32,10 +32,29 @@ export function setConsent(value: 'granted' | 'denied') {
   notify()
 }
 
-export const consentNow = (): Consent => (typeof window === 'undefined' ? 'pending' : (memory ?? storedConsent()))
+// The stored answer wins, so a "No thanks" in another tab counts here too.
+// The in-memory answer is only for when storage is blocked.
+function readable(): boolean {
+  try {
+    window.localStorage.getItem(KEY)
+    return true
+  } catch {
+    return false
+  }
+}
+export const consentNow = (): Consent => {
+  if (typeof window === 'undefined') return 'pending'
+  return readable() ? storedConsent() : (memory ?? 'pending')
+}
 
-// Hears about every change made with the banner.
+// Hears about every change: from this tab's banner, or another tab's.
 export function onConsentChange(listener: () => void): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key === KEY || event.key === null) notify()
+  })
 }

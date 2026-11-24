@@ -10,20 +10,24 @@ import { forgetIdentity, identify, track } from './posthog'
 
 export function useAnalyticsIdentity() {
   const { live, ready } = useApp()
-  const { userId, signedInBy } = useAuth()
+  const { userId, signedInBy, status } = useAuth()
   const team = live ? (ready?.viewAs.team ?? null) : null
 
   useEffect(() => {
     if (userId) identify(userId, team ? { team } : {})
   }, [userId, team])
 
-  const last = useRef<string | null>(null)
-  useEffect(() => {
-    if (last.current && !userId) forgetIdentity()
-    last.current = userId
-  }, [userId])
-
+  // Signed out, here or because the session ran out: forget them, so the
+  // next person on this browser isn't counted as them. A sign-out also
+  // means the next sign-in, even by the same rep, is a new signed_in.
   const announced = useRef<string | null>(null)
+  useEffect(() => {
+    if (live && status === 'signed-out') {
+      forgetIdentity()
+      announced.current = null
+    }
+  }, [live, status])
+
   useEffect(() => {
     if (!userId || !signedInBy || announced.current === userId) return
     announced.current = userId

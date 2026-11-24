@@ -1,5 +1,8 @@
 /* The analytics question: a strip along the bottom of the screen, over the
-   page rather than in it, so answering it never moves the passport. */
+   page rather than in it, so answering it never moves the passport. While
+   it shows, the page keeps --consent-space free at the bottom (set from the
+   banner's height), so nothing ends up hidden under it. */
+.app { padding-bottom: var(--consent-space, 0px); }
 
 .consent {
   position: fixed;
@@ -21,6 +24,8 @@
 
 .consent__text { max-width: 60ch; }
 .consent__title { font-size: var(--text-md); font-weight: 700; margin-bottom: var(--space-2xs); }
+.consent__title:focus { outline: none; }
+.consent__title:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .consent__text p { color: var(--color-ink-2); font-size: var(--text-sm); }
 
 .consent__actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); }

@@ -81,25 +81,47 @@ function start(): Promise<PostHog | null> {
       disable_external_dependency_loading: true,
       before_send: (event) => scrubEvent(event),
     })
+    // The demo never speaks for a real rep: if this browser was last used
+    // signed in to the live passport, start the demo as someone new.
+    if (runtime.mode === 'demo' && ph.get_property('$user_state') === 'identified') ph.reset()
     ph.register({ app_mode: runtime.mode })
     posthog = ph
-    if (identity) ph.identify(identity.userId, identity.props)
     return ph
   })
   return starting
 }
 
-// Turns analytics on or off as consent changes. Revoking consent opts out,
-// forgets the visitor's PostHog id, and stops anything else being sent.
+// PostHog's own storage in this browser: its ph_<key>_... entries.
+function clearStoredIds() {
+  for (const store of [window.localStorage, window.sessionStorage]) {
+    try {
+      for (const key of Object.keys(store)) if (key.startsWith('ph_')) store.removeItem(key)
+    } catch {
+      // Storage blocked: there's nothing stored to clear.
+    }
+  }
+}
+
+// Turns analytics on or off as consent changes.
+//   - No: forget this visitor entirely (a new id and device id), opt out,
+//     stop PostHog storing anything, and clear what it stored. reset() comes
+//     first because it also clears PostHog's own record of the opt-out.
+//   - Yes again, on the same page: let it store again and opt back in,
+//     without sending an extra opt-in event.
 function sync() {
   const consent = consentNow()
   if (consent === 'granted') {
     void start().then((ph) => {
-      if (ph?.has_opted_out_capturing()) ph.opt_in_capturing()
+      if (!ph || !ph.has_opted_out_capturing()) return
+      ph.set_config({ disable_persistence: false })
+      ph.opt_in_capturing({ captureEventName: false })
+      ph.register({ app_mode: runtime.mode })
     })
   } else if (consent === 'denied' && posthog) {
+    posthog.reset({ resetDeviceID: true })
     posthog.opt_out_capturing()
-    posthog.reset()
+    posthog.set_config({ disable_persistence: true })
+    clearStoredIds()
   }
 }
 
@@ -113,22 +135,31 @@ const allowed = () => runtime.posthog !== null && consentNow() === 'granted'
 // With consent, PostHog may still be downloading when the first event
 // happens (the passport opening, say), so wait for it. Without consent the
 // event is dropped.
+// Before anything is sent, the signed-in rep is identified if PostHog
+// doesn't already know them (a reset, or consent given after sign-in), so
+// no event of theirs goes out anonymous.
 function whenReady(send: (ph: PostHog) => void) {
   if (!allowed()) return
   void start().then((ph) => {
-    if (ph && allowed() && !ph.has_opted_out_capturing()) send(ph)
+    if (!ph || !allowed() || ph.has_opted_out_capturing()) return
+    if (identity && ph.get_distinct_id() !== identity.userId) ph.identify(identity.userId, identity.props)
+    send(ph)
   })
 }
 
+// app_mode goes on each event as well as being registered, so it survives
+// a reset.
 export function track(event: PassportEvent, props: Props = {}) {
-  whenReady((ph) => ph.capture(event, props))
+  whenReady((ph) => ph.capture(event, { ...props, app_mode: runtime.mode }))
 }
 
 // The signed-in rep, by Supabase user id. Remembered so it applies as soon as
 // analytics starts, if consent comes after sign-in.
 export function identify(userId: string, props: Props = {}) {
   identity = { userId, props }
-  whenReady((ph) => ph.identify(userId, props))
+  whenReady((ph) => {
+    if (ph.get_distinct_id() === userId && Object.keys(props).length) ph.setPersonProperties(props)
+  })
 }
 
 // passport_completed for a signed-in rep, once per rep per browser. The
@@ -160,6 +191,9 @@ export function trackCompletion(userId: string, props: Props) {
 // isn't counted as them.
 export function forgetIdentity() {
   identity = null
-  if (posthog) posthog.reset()
+  if (posthog && posthog.get_property('$user_state') === 'identified') {
+    posthog.reset()
+    posthog.register({ app_mode: runtime.mode })
+  }
 }
 

@@ -87,13 +87,31 @@ test('with consent, the passport events go out and say nothing about who', async
   for (const e of posthog.events) anonymous(e.raw)
   expect(posthog.requests.some((r) => /flags|decide|recorder|surveys|array\//.test(r))).toBe(false)
 
-  // Turning it off stops everything after.
+  // Turning it off stops everything after, and leaves no PostHog id behind.
   await page.getByRole('button', { name: 'Analytics settings (on)' }).click()
+  await expect(page.getByRole('heading', { name: 'Help improve the passport?' })).toBeFocused()
   await page.getByRole('button', { name: 'No thanks' }).click()
+  await expect(page.getByRole('button', { name: 'Analytics settings (off)' })).toBeFocused()
+  const stored = await page.evaluate(() => [...Object.keys(localStorage), ...Object.keys(sessionStorage)].filter((k) => k.startsWith('ph_')))
+  expect(stored).toEqual([])
   const before = posthog.events.length
   await page.goto('./#/passport/jordan-hale?page=3')
   await page.waitForTimeout(2500)
   expect(posthog.events.length).toBe(before)
+})
+
+test('the cookie question never covers the page controls', async ({ page }) => {
+  await demoWithPostHog(page)
+  await page.goto('./#/passport/hannah-kowalski?page=3')
+  const banner = page.locator('.consent')
+  await expect(banner).toBeVisible()
+  const next = page.getByRole('button', { name: 'Next page' })
+  await next.scrollIntoViewIfNeeded()
+  const [b, n] = await Promise.all([banner.boundingBox(), next.boundingBox()])
+  expect(n!.y + n!.height).toBeLessThanOrEqual(b!.y + 1)
+  // A phone turns one page, a laptop a whole spread.
+  await next.click()
+  await expect(page).toHaveURL(/page=[45]$/)
 })
 
 // A rep with everything done by late June: four in-person trainings, two
