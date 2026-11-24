@@ -12,6 +12,9 @@ interface Props {
   stamp: Stamp | null
   model: Model
   rep: Rep
+  // How many reps share it. Off in the live passport, which only has your
+  // own stamps, so it would always say 1.
+  showReps: boolean
   onClose: () => void
 }
 
@@ -72,7 +75,7 @@ function statusOf(model: Model, rep: Rep, stamp: Stamp): string {
   return `Counts toward the ${min} ${COUNTS[activity]}.`
 }
 
-export function StampDetail({ stamp, model, rep, onClose }: Props) {
+export function StampDetail({ stamp, model, rep, showReps, onClose }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
@@ -137,10 +140,12 @@ export function StampDetail({ stamp, model, rep, onClose }: Props) {
                 <dd>{formatAndPlace(stamp)}</dd>
               </div>
             )}
-            <div>
-              <dt>Reps</dt>
-              <dd>{reps}</dd>
-            </div>
+            {showReps && (
+              <div>
+                <dt>Reps</dt>
+                <dd>{reps}</dd>
+              </div>
+            )}
           </dl>
           <p className="slip__status">{statusOf(model, rep, stamp)}</p>
           <form method="dialog" className="slip__actions">

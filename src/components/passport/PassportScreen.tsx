@@ -4,7 +4,7 @@
 // too (see useTilt.ts).
 
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router'
 import { ACTIVITIES, type Activity } from '../../config'
 import { BACK_COVER, CHECKLIST_PAGE, DATA_PAGE, PAGES, SEAL_PAGE, pageForActivity, pageForView, pagesInView, parsePage, viewCount, viewForPage, viewLabel } from '../../lib/book'
 import { findRep, type Stamp } from '../../lib/model'
@@ -143,6 +143,12 @@ export function PassportScreen() {
     page.focus({ preventScroll: true })
   }
 
+  // The live passport is only ever your own. Any other rep's address (an old
+  // link from the demo, say) opens yours on the same page.
+  if (app.live && repId !== viewAs.id) {
+    return <Navigate to={`/passport/${viewAs.id}${page ? `?page=${page}` : ''}`} replace />
+  }
+
   if (!rep) {
     return (
       <div className="container">
@@ -181,7 +187,9 @@ export function PassportScreen() {
     }
     if (p === 1) return <NotesPage />
     if (p === BACK_COVER) return <BackCover rep={rep} still={still} onFront={() => goToView(0)} />
-    if (p === DATA_PAGE) return <DataPage rep={rep} row={row} repCount={board.length} ctx={ctx} />
+    // No rank in the live passport: a rep can only see their own stamps, so
+    // there's nobody to rank them against.
+    if (p === DATA_PAGE) return <DataPage rep={rep} row={row} repCount={app.live ? null : board.length} ctx={ctx} />
     if (p === CHECKLIST_PAGE) {
       // On a spread the seal page sits beside the checklist, so while the seal
       // is being pressed the checklist holds quota back. On a phone it never
@@ -245,7 +253,7 @@ export function PassportScreen() {
   return (
     <div className={`passport container${spread && (view === 0 || view === last) ? ' is-closed' : ''}${zoomed ? ' is-zoomed' : ''}`}>
       <h1 className="visually-hidden">{rep.name}’s passport</h1>
-      <PassportPicker model={model} rep={rep} page={page} />
+      {!app.live && <PassportPicker model={model} rep={rep} page={page} />}
       <div
         ref={tiltRef}
         className="passport__stage"
@@ -298,7 +306,7 @@ export function PassportScreen() {
         </button>
       </nav>
 
-      <StampDetail stamp={detail} model={model} rep={rep} onClose={() => setDetail(null)} />
+      <StampDetail stamp={detail} model={model} rep={rep} showReps={!app.live} onClose={() => setDetail(null)} />
     </div>
   )
 }

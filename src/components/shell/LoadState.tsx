@@ -1,10 +1,13 @@
 // What the screens show before the data is ready: a skeleton in the shape of
 // what's coming, an empty state if the file has no rows, and an error with a
-// way to try again.
+// way to try again. The live passport adds two more: signed out (the sign-in
+// screen) and signed in but not on the roster.
 
 import { useSearchParams } from 'react-router'
 import { BACK_COVER, parsePage } from '../../lib/book'
 import { useApp } from '../../state/AppState'
+import { useAuth } from '../../state/Auth'
+import { SignIn } from './SignIn'
 import './LoadState.css'
 
 interface Props {
@@ -12,12 +15,39 @@ interface Props {
 }
 
 export function LoadState({ screen }: Props) {
-  const { status, error, retry } = useApp()
+  const { status, error, retry, live } = useApp()
+  const auth = useAuth()
   const [params] = useSearchParams()
   // A passport link to a cover opens on the closed book, so its outline is
   // one cover, not an open spread.
   const page = parsePage(params.get('page'))
   const closed = page === 0 || page === BACK_COVER
+
+  if (status === 'signed-out') return <SignIn />
+
+  if (status === 'not-on-roster') {
+    return (
+      <div className="container">
+        <section className="state" aria-labelledby="state-title">
+          <h1 id="state-title" className="state__title">
+            No passport for this email yet
+          </h1>
+          <p className="state__text">
+            You’re signed in as <strong>{auth.email}</strong>, but that email isn’t on the President’s Club roster. If you’re in the program, ask the
+            program team to add you, then load it again.
+          </p>
+          <div className="state__actions">
+            <button type="button" className="btn" onClick={retry}>
+              Load it again
+            </button>
+            <button type="button" className="btn btn--quiet" onClick={() => void auth.signOut()}>
+              Sign out
+            </button>
+          </div>
+        </section>
+      </div>
+    )
+  }
 
   if (status === 'error') {
     return (
@@ -27,7 +57,9 @@ export function LoadState({ screen }: Props) {
             Couldn’t load the passport data
           </h1>
           <p className="state__text">{error}</p>
-          <p className="state__text">Passports and standings both read from that data. Nothing you changed in the demo is lost.</p>
+          <p className="state__text">
+            {live ? 'Your passport reads from that data. Nothing is lost: your stamps are all still there.' : 'Passports and standings both read from that data. Nothing you changed in the demo is lost.'}
+          </p>
           <button type="button" className="btn" onClick={retry}>
             Try again
           </button>

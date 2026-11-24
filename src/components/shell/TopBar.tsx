@@ -1,9 +1,11 @@
 // The top bar: the logo and program name, the two screens, and the switch
-// that opens the demo panel.
+// that opens the demo panel. In the live passport it has just the passport
+// and a Sign out button instead.
 
 import { Link, NavLink, useLocation } from 'react-router'
 import { PROGRAM_YEAR } from '../../config'
 import { useApp } from '../../state/AppState'
+import { useAuth } from '../../state/Auth'
 import './TopBar.css'
 
 interface Props {
@@ -15,7 +17,8 @@ interface Props {
 const LOGO = `${import.meta.env.BASE_URL}brand/scansource-logo.svg`
 
 export function TopBar({ demoOpen, onToggleDemo }: Props) {
-  const { ready } = useApp()
+  const { ready, live } = useApp()
+  const auth = useAuth()
   const { pathname } = useLocation()
   const passportPath = ready ? `/passport/${ready.viewAs.id}` : '/passport'
 
@@ -36,19 +39,29 @@ export function TopBar({ demoOpen, onToggleDemo }: Props) {
           >
             Passport
           </Link>
-          <NavLink to="/standings" className={({ isActive }) => `topbar__tab${isActive ? ' is-current' : ''}`}>
-            Standings
-          </NavLink>
+          {!live && (
+            <NavLink to="/standings" className={({ isActive }) => `topbar__tab${isActive ? ' is-current' : ''}`}>
+              Standings
+            </NavLink>
+          )}
         </nav>
-        <button
-          type="button"
-          className="topbar__demo"
-          aria-expanded={demoOpen}
-          aria-controls="demo-panel"
-          onClick={onToggleDemo}
-        >
-          {demoOpen ? 'Hide demo' : 'Demo'}
-        </button>
+        {live ? (
+          auth.status === 'signed-in' && (
+            <button type="button" className="topbar__demo" onClick={() => void auth.signOut()} title={auth.email ?? undefined}>
+              Sign out
+            </button>
+          )
+        ) : (
+          <button
+            type="button"
+            className="topbar__demo"
+            aria-expanded={demoOpen}
+            aria-controls="demo-panel"
+            onClick={onToggleDemo}
+          >
+            {demoOpen ? 'Hide demo' : 'Demo'}
+          </button>
+        )}
       </div>
     </header>
   )

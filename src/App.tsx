@@ -1,5 +1,7 @@
 // The app shell: top bar, the demo panel, and the two screens. Routes are
 // #/passport/<rep-id> and #/standings, with filters in the query string.
+// The live passport has no demo panel, and no standings yet: a signed-in rep
+// can only read their own stamps, so there's no board to rank them on.
 
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
@@ -19,13 +21,34 @@ const SCREEN = /^\/(passport\/[^/]+|standings)$/
 
 // The tab title says which screen you're on, so a screen reader (and a tab
 // strip full of them) can tell them apart.
-function titleFor(pathname: string, model: Model | null): string {
+function titleFor(pathname: string, model: Model | null, signedOut: boolean): string {
+  if (signedOut) return `Sign in · ${PRODUCT}`
   if (pathname === '/standings') return `Standings · ${PRODUCT}`
   const repId = /^\/passport\/([^/]+)$/.exec(pathname)?.[1]
   if (!repId) return `President’s Club Passport ${PROGRAM_YEAR}`
   if (!model) return `Passport · ${PRODUCT}`
   const rep = findRep(model, repId)
   return rep ? `${rep.name}’s passport · ${PRODUCT}` : `No passport found · ${PRODUCT}`
+}
+
+// Standings in the live passport, for now. The demo still has them, on the
+// sample data, at the same address with ?demo.
+function StandingsLater() {
+  return (
+    <div className="container">
+      <section className="state" aria-labelledby="state-title">
+        <h1 id="state-title" className="state__title">
+          Standings aren’t here yet
+        </h1>
+        <p className="state__text">
+          For now the passport shows only your own stamps. You can see how the standings will work in the demo, which runs on made-up sample data.
+        </p>
+        <a className="btn btn--quiet" href={`${import.meta.env.BASE_URL}?demo#/standings`}>
+          Open the demo’s standings
+        </a>
+      </section>
+    </div>
+  )
 }
 
 export function App() {
@@ -48,9 +71,10 @@ export function App() {
   }, [pathname])
 
   const model = app.ready?.model ?? null
+  const signedOut = app.status === 'signed-out'
   useEffect(() => {
-    document.title = titleFor(pathname, model)
-  }, [pathname, model])
+    document.title = titleFor(pathname, model, signedOut)
+  }, [pathname, model, signedOut])
 
   // A new screen also moves focus to the top of it, the way a page load
   // would, so the next Tab starts there and a screen reader hears the
@@ -82,11 +106,14 @@ export function App() {
         Skip to content
       </a>
       <TopBar demoOpen={demoOpen} onToggleDemo={() => setDemoOpen((open) => !open)} />
-      <DemoPanel open={demoOpen} onClose={() => setDemoOpen(false)} />
+      {!app.live && <DemoPanel open={demoOpen} onClose={() => setDemoOpen(false)} />}
       <main id="main" className="main" tabIndex={-1}>
         <Routes>
           <Route path="/passport/:repId" element={app.ready ? <PassportScreen /> : <LoadState screen="passport" />} />
-          <Route path="/standings" element={app.ready ? <StandingsScreen /> : <LoadState screen="standings" />} />
+          <Route
+            path="/standings"
+            element={app.live && app.ready ? <StandingsLater /> : app.ready ? <StandingsScreen /> : <LoadState screen="standings" />}
+          />
           <Route path="*" element={app.ready ? <Navigate to={home} replace /> : <LoadState screen="passport" />} />
         </Routes>
       </main>

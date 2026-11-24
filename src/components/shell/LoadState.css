@@ -85,3 +85,6 @@
   .state { padding: var(--space-lg); margin-block: var(--space-xl); }
   .skeleton__figures { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Two buttons side by side, wrapping on a narrow phone. */
+.state__actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); }

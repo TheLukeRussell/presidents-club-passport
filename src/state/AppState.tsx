@@ -1,8 +1,14 @@
 // App-wide state: loads the data, layers the demo's recordings on top, and
 // hands the passport and standings everything they need. Screens read it with useApp().
+//
+// In the demo the data is the sample JSON and today is DEMO_TODAY. In the
+// live passport (runtime.mode 'live') the data is the signed-in rep's own row
+// and stamps from Supabase, today is the real date, and the demo's
+// recordings are left out.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ACTIVITIES, DEMO_REP, DEMO_SEED, DEMO_SHARE, DEMO_TODAY, type Activity } from '../config'
+import { loadLiveData } from '../data/live'
 import { DataError, loadData } from '../data/source'
 import type { PassportData } from '../data/types'
 import type { Span } from '../lib/board'
@@ -10,9 +16,13 @@ import { demoStamp, demoStamps, GROUP_EVENTS, landingKey, pickAttendees, pickDef
 import { buildModel, findRep, withStamps, type Model, type Rep } from '../lib/model'
 import { standings, type StandingRow } from '../lib/ranking'
 import { repStats, type Context } from '../lib/rules'
-import { readSaved, writeSaved, type SavedDemo } from './storage'
+import { todayInProgram } from '../lib/today'
+import { runtime } from '../runtime'
+import { useAuth } from './Auth'
+import { celebratedBefore, noteCelebrated, readSaved, writeSaved, type SavedDemo } from './storage'
 
-export type LoadStatus = 'loading' | 'error' | 'empty' | 'ready'
+// signed-out and not-on-roster only happen in the live passport.
+export type LoadStatus = 'loading' | 'error' | 'empty' | 'ready' | 'signed-out' | 'not-on-roster'
 export type Preview = 'live' | 'loading' | 'empty' | 'error'
 
 // The board as it stood just before something was recorded, so Standings can
@@ -41,6 +51,8 @@ interface Ready {
 export type RecordBlock = 'recorded' | 'has-it' | 'nothing-left' | null
 
 interface AppValue {
+  // True for the live passport (signed in, reading Supabase), false for the demo.
+  live: boolean
   status: LoadStatus
   error: string | null
   retry: () => void
@@ -71,8 +83,20 @@ const AppContext = createContext<AppValue | null>(null)
 const UNDO_MS = 10000
 const CTX: Context = { today: DEMO_TODAY }
 
+// What came back, and for whom: the live passport throws it away when
+// someone else signs in on the same page.
+interface Loaded {
+  user: string | null
+  data: PassportData
+  onRoster: boolean
+  today: string
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<PassportData | null>(null)
+  const live = runtime.mode === 'live'
+  const auth = useAuth()
+  const userId = live ? auth.userId : null
+  const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [preview, setPreview] = useState<Preview>('live')
@@ -87,15 +111,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [openedGaps, setOpenedGaps] = useState<OpenedGaps>({ key: '', spans: [] })
 
   useEffect(() => {
+    // The live passport has nothing to load until someone signs in.
+    if (live && !userId) return
     const controller = new AbortController()
-    loadData(controller.signal)
-      .then(setData)
+    const load: Promise<Loaded> = live
+      ? loadLiveData(controller.signal).then((found) => ({
+          user: userId,
+          data: found ?? { reps: [], stamps: [] },
+          onRoster: found !== null,
+          today: todayInProgram(),
+        }))
+      : loadData(controller.signal).then((found) => ({ user: null, data: found, onRoster: true, today: DEMO_TODAY }))
+    load
+      .then((next) => {
+        if (controller.signal.aborted) return
+        setLoaded(next)
+        // A rep who's met all five gets the cover's celebration once, the
+        // first time this browser opens their passport after it happens.
+        if (live && next.user && next.onRoster) {
+          const model = buildModel(next.data)
+          const rep = model.reps[0]
+          if (rep && repStats(model, rep, { today: next.today }).qualified && !celebratedBefore(next.user)) {
+            noteCelebrated(next.user)
+            setLanding((current) => new Set([...current, landingKey(rep.email, 'qualified')]))
+          }
+        }
+      })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return
         setError(err instanceof DataError ? err.message : 'Something went wrong reading the passport data.')
       })
     return () => controller.abort()
-  }, [attempt])
+  }, [attempt, live, userId])
+
+  // Only what was loaded for whoever is signed in now counts.
+  const current = loaded && loaded.user === userId ? loaded : null
+  const data = current?.data ?? null
+  const ctx = useMemo<Context>(() => (live ? { today: current?.today ?? todayInProgram() } : CTX), [live, current?.today])
 
   // Write-through to storage. A failed write is fine: the demo keeps working
   // from memory, it just won't survive a reload.
@@ -114,6 +166,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const ready = useMemo<Ready | null>(() => {
     if (!baseModel || baseModel.reps.length === 0) return null
+    // Live: one rep, their own stamps, nothing recorded on top.
+    if (live) return { model: baseModel, ctx, board: standings(baseModel, ctx), viewAs: baseModel.reps[0] }
     // Each activity's recording, in order. Emails no longer in the data just
     // drop out, and a rep who already has the stamp doesn't get it twice.
     let model = baseModel
@@ -123,10 +177,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     const viewAs = (saved.viewAs && findRep(baseModel, saved.viewAs)) || pickDefaultRep(baseModel, CTX, DEMO_REP) || baseModel.reps[0]
     return { model, ctx: CTX, board: standings(model, CTX), viewAs }
-  }, [baseModel, saved])
+  }, [baseModel, saved, live, ctx])
 
+  const signedOut = live && (auth.status === 'signed-out' || (auth.status === 'signed-in' && !userId))
   const status: LoadStatus =
-    preview !== 'live' ? preview : error ? 'error' : !data ? 'loading' : ready ? 'ready' : 'empty'
+    preview !== 'live'
+      ? preview
+      : live && auth.status === 'checking'
+        ? 'loading'
+        : signedOut
+          ? 'signed-out'
+          : error
+            ? 'error'
+            : !data
+              ? 'loading'
+              : current && !current.onRoster
+                ? 'not-on-roster'
+                : ready
+                  ? 'ready'
+                  : 'empty'
 
   const setViewAs = useCallback((repId: string) => setSaved((s) => ({ ...s, viewAs: repId })), [])
 
@@ -135,14 +204,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // can get one.
   const recordBlock = useCallback(
     (activity: Activity, repId?: string): RecordBlock => {
-      if (!ready || !baseModel) return 'nothing-left'
+      // The live passport never records: stamps only come from Supabase.
+      if (live || !ready || !baseModel) return 'nothing-left'
       const rep = (repId && findRep(baseModel, repId)) || ready.viewAs
       const emails = saved.recorded?.[activity] ?? []
       if (GROUP_EVENTS.includes(activity) ? emails.length > 0 : emails.includes(rep.email)) return 'recorded'
       if (demoStamp(ready.model, rep, activity, CTX)) return null
       return activity === 'hub' ? 'nothing-left' : 'has-it'
     },
-    [ready, baseModel, saved],
+    [ready, baseModel, saved, live],
   )
 
   const record = useCallback(
@@ -225,11 +295,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value: AppValue = {
+    live,
     status,
     error: preview === 'error' ? 'This is a preview of the error state. Nothing is actually broken.' : error,
     retry: () => {
       setPreview('live')
-      setData(null)
+      setLoaded(null)
       setError(null)
       setAttempt((n) => n + 1)
     },

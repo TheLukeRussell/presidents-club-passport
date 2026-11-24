@@ -26,6 +26,10 @@
       <p class="noscript">This passport needs JavaScript to run. Turn it on and reload the page.</p>
     </noscript>
     <div id="root"></div>
+    <!-- Runtime settings (Supabase, PostHog), filled in by the deploy. A plain
+         script, not a module, so it's read before the app starts. Blank, the
+         app runs the demo. -->
+    <script src="config.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
