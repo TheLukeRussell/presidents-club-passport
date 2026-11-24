@@ -102,5 +102,5 @@ comment on view public.rep_progress is
 
 -- Signed-in reps may read it (row-level security limits them to their own
 -- row). Signed-out visitors may not.
-revoke all on table public.rep_progress from anon, authenticated;
-grant select on table public.rep_progress to authenticated;
+revoke all on table public.rep_progress from anon, authenticated, service_role;
+grant select on table public.rep_progress to authenticated, service_role;

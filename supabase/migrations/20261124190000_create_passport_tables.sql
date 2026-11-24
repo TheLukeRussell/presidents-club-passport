@@ -125,4 +125,4 @@ before insert or update of source, activity_id on public.stamps
 for each row execute function public.stamps_quota_is_admin();
 
 -- It only ever runs as a trigger, so nobody needs to call it directly.
-revoke all on function public.stamps_quota_is_admin() from public, anon, authenticated;
+revoke all on function public.stamps_quota_is_admin() from public, anon, authenticated, service_role;

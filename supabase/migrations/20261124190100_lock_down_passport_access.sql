@@ -19,10 +19,17 @@ alter table public.reps enable row level security;
 alter table public.activities enable row level security;
 alter table public.stamps enable row level security;
 
--- Supabase grants anon and authenticated everything on new tables in public
--- by default. Start from nothing and add back only reads for signed-in reps.
-revoke all on table public.reps, public.activities, public.stamps from anon, authenticated;
+-- Older Supabase projects grant the API roles everything on new tables in
+-- public; newer ones can grant nothing. Either way, start from nothing and
+-- say exactly who gets what:
+--   - authenticated (a signed-in rep): read only, narrowed by the policies
+--     below.
+--   - service_role (the attendance importer): read, add and update. No
+--     delete or truncate, so even the service role key can't remove a rep,
+--     an activity or a stamp through the API.
+revoke all on table public.reps, public.activities, public.stamps from anon, authenticated, service_role;
 grant select on table public.reps, public.activities, public.stamps to authenticated;
+grant select, insert, update on table public.reps, public.activities, public.stamps to service_role;
 
 -- (select auth.uid()) rather than auth.uid(): Postgres works it out once per
 -- query instead of once per row, which is Supabase's own advice for policies.
