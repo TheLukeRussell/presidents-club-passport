@@ -50,6 +50,11 @@ export const QUOTA_DATE = EXPIRY_DATE
 // with a supplier fair and an in-person training the same day.
 export const DEMO_TODAY = '2027-06-17'
 
+// The live passport (signed in, reading Supabase) uses the real date in this
+// time zone, where the program is run from. rep_progress in Supabase uses
+// the same zone, so the two agree on what "today" is.
+export const PROGRAM_TIME_ZONE = 'America/New_York'
+
 // Teams are business units, each selling its own set of suppliers.
 export const TEAMS = ['Communications', 'POSB', 'NetSec', 'Cisco', 'Federal'] as const
 

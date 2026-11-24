@@ -17,7 +17,9 @@ import './DataPage.css'
 interface Props {
   rep: Rep
   row: StandingRow
-  repCount: number
+  // How many reps are ranked, or null for no rank at all (the live
+  // passport, which only has the one rep).
+  repCount: number | null
   ctx: Context
 }
 
@@ -64,7 +66,7 @@ export function DataPage({ rep, row, repCount, ctx }: Props) {
     met: stats.met,
     stamps: stats.total,
     quota: quota.met,
-    rank,
+    rank: repCount === null ? null : rank,
     issue: ISSUE_DATE,
     expiry: EXPIRY_DATE,
   })
@@ -144,16 +146,22 @@ export function DataPage({ rep, row, repCount, ctx }: Props) {
           </div>
           <div className="data__stat">
             <dt>Rank</dt>
-            <dd className="data__rank">
-              <span>
-                <RankText rank={rank} of={repCount} tied={row.tied} />
-              </span>
-              {widestRanks(repCount).map((n) => (
-                <span key={n} className="data__rank-reserve" aria-hidden="true">
-                  <RankText rank={n} of={repCount} tied />
+            {repCount === null ? (
+              <dd>
+                <span className="data__figure data__figure--word">Not ranked</span>
+              </dd>
+            ) : (
+              <dd className="data__rank">
+                <span>
+                  <RankText rank={rank} of={repCount} tied={row.tied} />
                 </span>
-              ))}
-            </dd>
+                {widestRanks(repCount).map((n) => (
+                  <span key={n} className="data__rank-reserve" aria-hidden="true">
+                    <RankText rank={n} of={repCount} tied />
+                  </span>
+                ))}
+              </dd>
+            )}
           </div>
           {/* Quota: when the results come in, then the gold seal once it's hit. */}
           <div className="data__stat">

@@ -4,8 +4,11 @@
 // too (see useTilt.ts).
 
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router'
+import { track } from '../../analytics/posthog'
+import { usePassportViewed } from '../../analytics/usePassportViewed'
 import { ACTIVITIES, type Activity } from '../../config'
+import { activityTypeOf } from '../../data/activity-types'
 import { BACK_COVER, CHECKLIST_PAGE, DATA_PAGE, PAGES, SEAL_PAGE, pageForActivity, pageForView, pagesInView, parsePage, viewCount, viewForPage, viewLabel } from '../../lib/book'
 import { findRep, type Stamp } from '../../lib/model'
 import { landingKey } from '../../lib/demo'
@@ -67,6 +70,8 @@ export function PassportScreen() {
   const page = parsePage(params.get('page'))
   const view = viewForPage(page, spread)
   const last = viewCount(spread) - 1
+
+  usePassportViewed(rep?.id, board, viewAs.id, page)
 
   const goToView = useCallback(
     (next: number) => {
@@ -143,6 +148,12 @@ export function PassportScreen() {
     page.focus({ preventScroll: true })
   }
 
+  // The live passport is only ever your own. Any other rep's address (an old
+  // link from the demo, say) opens yours on the same page.
+  if (app.live && repId !== viewAs.id) {
+    return <Navigate to={`/passport/${viewAs.id}${page ? `?page=${page}` : ''}`} replace />
+  }
+
   if (!rep) {
     return (
       <div className="container">
@@ -181,13 +192,32 @@ export function PassportScreen() {
     }
     if (p === 1) return <NotesPage />
     if (p === BACK_COVER) return <BackCover rep={rep} still={still} onFront={() => goToView(0)} />
-    if (p === DATA_PAGE) return <DataPage rep={rep} row={row} repCount={board.length} ctx={ctx} />
+    // No rank in the live passport: a rep can only see their own stamps, so
+    // there's nobody to rank them against.
+    if (p === DATA_PAGE) return <DataPage rep={rep} row={row} repCount={app.live ? null : board.length} ctx={ctx} />
     if (p === CHECKLIST_PAGE) {
       // On a spread the seal page sits beside the checklist, so while the seal
       // is being pressed the checklist holds quota back. On a phone it never
       // needs to: page 7 isn't showing during the press.
       const holdQuota = landing('quota') && pagesInView(view, spread).includes(SEAL_PAGE)
-      return <ChecklistPage rep={rep} stats={stats} ctx={ctx} still={still} holdQuota={holdQuota} onGo={goToPage} />
+      // activity_clicked: a checklist row, the one place an activity is a
+      // button. Named by the stamp type its minimum counts, the same names
+      // as Supabase's activities.type.
+      const onGo = (target: number) => {
+        const activity = PAGES[target - 1]?.activity
+        if (activity) {
+          const progress = stats.progress[activity]
+          track('activity_clicked', {
+            activity_type: activityTypeOf(activity, 'in person'),
+            counted: progress.counted,
+            minimum: progress.minimum,
+            met: progress.met,
+            from: 'checklist',
+          })
+        }
+        goToPage(target)
+      }
+      return <ChecklistPage rep={rep} stats={stats} ctx={ctx} still={still} holdQuota={holdQuota} onGo={onGo} />
     }
     if (p === SEAL_PAGE) {
       return <SealPage rep={rep} stats={stats} ctx={ctx} landing={landing('quota')} onLanded={onLanded.quota} still={still} />
@@ -202,7 +232,17 @@ export function PassportScreen() {
         ctx={ctx}
         landing={landing(activity)}
         onLanded={onLanded[activity]}
-        onOpen={setDetail}
+        onOpen={(stamp) => {
+          // stamp_viewed: the detail slip opens. What it is, not who has it.
+          track('stamp_viewed', {
+            activity_type: activityTypeOf(stamp.activity, stamp.format),
+            activity_title: stamp.event,
+            supplier: stamp.supplier || null,
+            earned_at: stamp.date,
+            page: p,
+          })
+          setDetail(stamp)
+        }}
         still={still}
       />
     )
@@ -245,7 +285,7 @@ export function PassportScreen() {
   return (
     <div className={`passport container${spread && (view === 0 || view === last) ? ' is-closed' : ''}${zoomed ? ' is-zoomed' : ''}`}>
       <h1 className="visually-hidden">{rep.name}’s passport</h1>
-      <PassportPicker model={model} rep={rep} page={page} />
+      {!app.live && <PassportPicker model={model} rep={rep} page={page} />}
       <div
         ref={tiltRef}
         className="passport__stage"
@@ -298,7 +338,7 @@ export function PassportScreen() {
         </button>
       </nav>
 
-      <StampDetail stamp={detail} model={model} rep={rep} onClose={() => setDetail(null)} />
+      <StampDetail stamp={detail} model={model} rep={rep} showReps={!app.live} onClose={() => setDetail(null)} />
     </div>
   )
 }

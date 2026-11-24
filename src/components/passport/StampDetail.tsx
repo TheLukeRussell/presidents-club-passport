@@ -12,6 +12,9 @@ interface Props {
   stamp: Stamp | null
   model: Model
   rep: Rep
+  // How many reps share it, and the mention of Standings. Off in the live
+  // passport, which only has your own stamps and no Standings.
+  showReps: boolean
   onClose: () => void
 }
 
@@ -54,8 +57,9 @@ function formatAndPlace(stamp: Stamp): string {
 
 // One line on what this stamp counts toward. A virtual training still earns
 // a stamp, and anything past the minimum still adds to the total that
-// breaks ties on Standings.
-function statusOf(model: Model, rep: Rep, stamp: Stamp): string {
+// breaks ties on Standings (in the demo; the live passport has no
+// Standings, so there it's just their total).
+function statusOf(model: Model, rep: Rep, stamp: Stamp, standings: boolean): string {
   const { activity } = stamp
   if (activity === 'quota') return 'Quota hit, so the last minimum is met.'
   if (activity === 'training' && stamp.format !== 'in person') {
@@ -65,14 +69,14 @@ function statusOf(model: Model, rep: Rep, stamp: Stamp): string {
   const counted = stampsOf(model, rep).filter((s) => s.activity === activity && (activity !== 'training' || s.format === 'in person'))
   const place = counted.findIndex((s) => s.id === stamp.id)
   if (place >= min) {
-    return `An extra: ${firstName(rep.name)} already had the ${min} ${COUNTS[activity]}. It still adds to the stamp total on Standings.`
+    return `An extra: ${firstName(rep.name)} already had the ${min} ${COUNTS[activity]}. ${standings ? 'It still adds to the stamp total on Standings.' : 'It still adds to the stamp total.'}`
   }
   if (activity === 'training') return `In person, so it counts toward the ${min} in-person trainings.`
   if (activity === 'club') return 'Counts toward Club Express, which takes both events.'
   return `Counts toward the ${min} ${COUNTS[activity]}.`
 }
 
-export function StampDetail({ stamp, model, rep, onClose }: Props) {
+export function StampDetail({ stamp, model, rep, showReps, onClose }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
@@ -137,12 +141,14 @@ export function StampDetail({ stamp, model, rep, onClose }: Props) {
                 <dd>{formatAndPlace(stamp)}</dd>
               </div>
             )}
-            <div>
-              <dt>Reps</dt>
-              <dd>{reps}</dd>
-            </div>
+            {showReps && (
+              <div>
+                <dt>Reps</dt>
+                <dd>{reps}</dd>
+              </div>
+            )}
           </dl>
-          <p className="slip__status">{statusOf(model, rep, stamp)}</p>
+          <p className="slip__status">{statusOf(model, rep, stamp, showReps)}</p>
           <form method="dialog" className="slip__actions">
             <button type="submit" className="btn">
               Close

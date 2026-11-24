@@ -97,7 +97,8 @@
   .passport__controls {
     grid-area: bar;
     position: sticky;
-    bottom: 0;
+    /* Above the cookie banner while it shows (ConsentBanner.css). */
+    bottom: var(--consent-space, 0px);
     z-index: var(--z-sticky);
     width: auto;
     margin-inline: calc(-1 * var(--gutter));
@@ -116,7 +117,8 @@
   .passport .picker {
     grid-area: bar;
     position: sticky;
-    bottom: var(--bar-pad);
+    /* Moves up with the bar while the cookie banner shows. */
+    bottom: calc(var(--bar-pad) + var(--consent-space, 0px));
     z-index: calc(var(--z-sticky) + 1);
     align-self: stretch;
     justify-self: center;
@@ -150,7 +152,7 @@
 /* Tabbing scrolls a slot just into view, which on a phone (or at 200% zoom)
    left the sticky bar over its bottom. Keep focus clear of the bar. */
 @media (max-width: 59.99rem) {
-  html:has(.passport__controls) { scroll-padding-bottom: 5rem; }
+  html:has(.passport__controls) { scroll-padding-bottom: calc(5rem + var(--consent-space, 0px)); }
 }
 
 @media (min-width: 60rem) {

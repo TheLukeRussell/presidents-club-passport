@@ -30,6 +30,17 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npx vite build
+      # Fills in dist/config.js (Supabase and PostHog) from this repository's
+      # Actions secrets, so the values never sit in the repo. With none set,
+      # it stays blank and the site runs the demo, as it always has. Only
+      # public, browser-safe values belong here: the script refuses a
+      # service role key or a PostHog personal key, and never prints a value.
+      - run: node scripts/write-config.js dist/config.js
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          POSTHOG_PROJECT_KEY: ${{ secrets.POSTHOG_PROJECT_KEY }}
+          POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

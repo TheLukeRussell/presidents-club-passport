@@ -53,3 +53,28 @@ export function writeSaved(saved: SavedDemo): boolean {
     return false
   }
 }
+
+// The live passport remembers, per signed-in user, that this browser has
+// played the cover's celebration, so it plays once rather than on every
+// visit. Its own key: the demo's Reset wipes pcp-demo-v1, and this isn't
+// demo state. Blocked storage just means it may play again.
+const LIVE_KEY = 'pcp-live-v1'
+
+function readCelebrated(): string[] {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(LIVE_KEY) ?? '{}') as { celebrated?: unknown }
+    return Array.isArray(value.celebrated) ? value.celebrated.filter((id): id is string => typeof id === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+export const celebratedBefore = (userId: string) => readCelebrated().includes(userId)
+
+export function noteCelebrated(userId: string) {
+  try {
+    window.localStorage.setItem(LIVE_KEY, JSON.stringify({ celebrated: [...new Set([...readCelebrated(), userId])] }))
+  } catch {
+    // Blocked. It may play again next time, which is harmless.
+  }
+}
