@@ -94,6 +94,18 @@ export function App() {
     document.getElementById('main')?.focus({ preventScroll: true })
   }, [pathname])
 
+  // Signing in swaps the sign-in screen for the passport without a route
+  // change, so focus would be left on nothing. Put it at the top of the
+  // passport, the way a new screen does.
+  const fromSignIn = useRef(false)
+  useEffect(() => {
+    if (app.status === 'signed-out') fromSignIn.current = true
+    else if (app.status === 'ready' && fromSignIn.current) {
+      fromSignIn.current = false
+      document.getElementById('main')?.focus({ preventScroll: true })
+    }
+  }, [app.status])
+
   return (
     <div className="app">
       {/* The router owns the hash, so the link moves focus itself instead of

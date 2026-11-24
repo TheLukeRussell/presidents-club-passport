@@ -99,7 +99,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const auth = useAuth()
   const userId = live ? auth.userId : null
   const [loaded, setLoaded] = useState<Loaded | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  // An error belongs to whoever was signed in when it happened, so signing
+  // in again (as anyone) starts clean.
+  const [failure, setFailure] = useState<{ user: string | null; message: string } | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [preview, setPreview] = useState<Preview>('live')
 
@@ -146,10 +148,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return
-        setError(err instanceof DataError ? err.message : 'Something went wrong reading the passport data.')
+        setFailure({ user: userId, message: err instanceof DataError ? err.message : 'Something went wrong reading the passport data.' })
       })
     return () => controller.abort()
   }, [attempt, live, userId])
+  const unavailable = live && auth.status === 'unavailable'
+  const error = unavailable
+    ? 'Couldn’t reach the sign-in service. Check the connection and try again.'
+    : failure && failure.user === userId
+      ? failure.message
+      : null
 
   // Only what was loaded for whoever is signed in now counts.
   const current = loaded && loaded.user === userId ? loaded : null
@@ -192,6 +200,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ? preview
       : live && auth.status === 'checking'
         ? 'loading'
+        : unavailable
+          ? 'error'
         : signedOut
           ? 'signed-out'
           : error
@@ -310,8 +320,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     error: preview === 'error' ? 'This is a preview of the error state. Nothing is actually broken.' : error,
     retry: () => {
       setPreview('live')
+      if (unavailable) return auth.retry()
       setLoaded(null)
-      setError(null)
+      setFailure(null)
       setAttempt((n) => n + 1)
     },
     ready: status === 'ready' ? ready : null,

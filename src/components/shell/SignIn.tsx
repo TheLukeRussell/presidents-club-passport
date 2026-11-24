@@ -3,7 +3,7 @@
 // the President's Club roster have an account to sign in to (the attendance
 // importer makes them), and once in, a rep only ever sees their own passport.
 
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { sendSignInEmail, verifySignInCode } from '../../data/live'
 import { useAuth } from '../../state/Auth'
 import './SignIn.css'
@@ -31,38 +31,68 @@ function explain(error: unknown, sending: boolean): string {
   return message || 'Something went wrong. Try again.'
 }
 
+// Focus stays put while a request runs: fields go read-only and buttons
+// aria-disabled, rather than disabled, which would drop focus to the page.
+// When something goes wrong, focus goes back to the field to fix, and the
+// field points at the message.
 export function SignIn() {
   const { linkProblem, noteCodeSignIn } = useAuth()
   const [step, setStep] = useState<Step>({ at: 'email' })
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState<'sending' | 'resending' | 'checking' | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
+  const [resent, setResent] = useState(false)
+  const emailField = useRef<HTMLInputElement>(null)
+  const codeField = useRef<HTMLInputElement>(null)
+  // Which field gets focus after the next render: the new step's field, or
+  // the one with a problem. A ref, read after every render, so asking for
+  // focus never costs a render of its own.
+  const focusNext = useRef<'email' | 'code' | null>(null)
+  useEffect(() => {
+    const field = focusNext.current
+    if (!field) return
+    focusNext.current = null
+    ;(field === 'email' ? emailField : codeField).current?.focus()
+  })
+  const setFocusNext = (field: 'email' | 'code') => {
+    focusNext.current = field
+  }
 
-  const send = async (event?: FormEvent) => {
+  const fail = (message: string, field: 'email' | 'code') => {
+    setFocusNext(field)
+    setProblem(message)
+  }
+
+  const send = async (event?: FormEvent, again = false) => {
     event?.preventDefault()
-    const address = email.trim().toLowerCase()
-    if (!address.includes('@')) return setProblem('Enter your work email address.')
-    setBusy(true)
+    if (busy) return
+    const address = step.at === 'code' ? step.email : email.trim().toLowerCase()
+    if (!address.includes('@')) return fail('Enter your work email address.', 'email')
+    setBusy(again ? 'resending' : 'sending')
     setProblem(null)
+    setResent(false)
     try {
       await sendSignInEmail(address)
+      setFocusNext('code')
       setStep({ at: 'code', email: address })
-      setCode('')
+      if (!again) setCode('')
+      setResent(again)
     } catch (error) {
-      setProblem(explain(error, true))
+      fail(explain(error, true), again ? 'code' : 'email')
     } finally {
-      setBusy(false)
+      setBusy(null)
     }
   }
 
   const verify = async (event: FormEvent) => {
     event.preventDefault()
-    if (step.at !== 'code') return
+    if (step.at !== 'code' || busy) return
     const token = code.replace(/\D/g, '')
-    if (token.length < 6) return setProblem('Enter the 6-digit code from the email.')
-    setBusy(true)
+    if (token.length < 6) return fail('Enter the 6-digit code from the email.', 'code')
+    setBusy('checking')
     setProblem(null)
+    setResent(false)
     noteCodeSignIn(true)
     try {
       // Success signs them in through Auth's listener, which swaps this
@@ -70,10 +100,12 @@ export function SignIn() {
       await verifySignInCode(step.email, token)
     } catch (error) {
       noteCodeSignIn(false)
-      setProblem(explain(error, false))
-      setBusy(false)
+      setBusy(null)
+      fail(explain(error, false), 'code')
     }
   }
+
+  const problemId = problem ? 'signin-problem' : undefined
 
   return (
     <div className="container">
@@ -96,6 +128,7 @@ export function SignIn() {
               <div className="field">
                 <label htmlFor="signin-email">Work email</label>
                 <input
+                  ref={emailField}
                   id="signin-email"
                   className="input"
                   type="email"
@@ -104,12 +137,14 @@ export function SignIn() {
                   spellCheck={false}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  disabled={busy}
+                  readOnly={busy !== null}
+                  aria-invalid={problem ? true : undefined}
+                  aria-describedby={problemId}
                   required
                 />
               </div>
-              <button type="submit" className="btn" disabled={busy} aria-busy={busy || undefined}>
-                {busy ? 'Sending…' : 'Email me a sign-in link'}
+              <button type="submit" className="btn" aria-disabled={busy !== null || undefined} aria-busy={busy === 'sending' || undefined}>
+                {busy === 'sending' ? 'Sending…' : 'Email me a sign-in link'}
               </button>
             </form>
           </>
@@ -122,6 +157,7 @@ export function SignIn() {
               <div className="field">
                 <label htmlFor="signin-code">6-digit code</label>
                 <input
+                  ref={codeField}
                   id="signin-code"
                   className="input signin__code"
                   type="text"
@@ -131,37 +167,44 @@ export function SignIn() {
                   maxLength={10}
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
-                  disabled={busy}
-                  autoFocus
+                  readOnly={busy !== null}
+                  aria-invalid={problem ? true : undefined}
+                  aria-describedby={problemId}
                 />
               </div>
-              <button type="submit" className="btn" disabled={busy} aria-busy={busy || undefined}>
-                {busy ? 'Checking…' : 'Sign in'}
+              <button type="submit" className="btn" aria-disabled={busy !== null || undefined} aria-busy={busy === 'checking' || undefined}>
+                {busy === 'checking' ? 'Checking…' : 'Sign in'}
               </button>
             </form>
             <p className="signin__again">
               Nothing yet? Check spam, or{' '}
-              <button type="button" className="link-btn" onClick={() => send()} disabled={busy}>
-                send another
+              <button type="button" className="link-btn" onClick={() => void send(undefined, true)} aria-disabled={busy !== null || undefined}>
+                {busy === 'resending' ? 'sending…' : 'send another'}
               </button>
               {' · '}
               <button
                 type="button"
                 className="link-btn"
                 onClick={() => {
+                  if (busy) return
+                  setFocusNext('email')
                   setStep({ at: 'email' })
                   setProblem(null)
+                  setResent(false)
                 }}
-                disabled={busy}
+                aria-disabled={busy !== null || undefined}
               >
                 use a different email
               </button>
+            </p>
+            <p className="signin__sent" role="status">
+              {resent ? 'We sent a new email. Use the code from the newest one.' : ''}
             </p>
           </>
         )}
 
         {problem && (
-          <p className="signin__problem" role="alert">
+          <p id="signin-problem" className="signin__problem" role="alert">
             {problem}
           </p>
         )}

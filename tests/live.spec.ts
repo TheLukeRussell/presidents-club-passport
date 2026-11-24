@@ -78,17 +78,40 @@ test('a rep signs in with the emailed code and sees only their own passport', as
   expect(calls.some((c) => c.path === '/auth/v1/logout')).toBe(true)
 })
 
-test('a wrong code says so and lets them try again', async ({ page }) => {
+test('a wrong code says so, keeps focus in the box, and lets them try again', async ({ page }) => {
   await fakeSupabase(page, PAT)
   await page.goto('./')
   await page.getByLabel('Work email').fill(EMAIL)
-  await page.getByRole('button', { name: 'Email me a sign-in link' }).click()
-  await page.getByLabel('6-digit code').fill('000000')
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByLabel('Work email').press('Enter')
+  const code = page.getByLabel('6-digit code')
+  await expect(code).toBeFocused()
+  await code.fill('000000')
+  await code.press('Enter')
   await expect(page.getByRole('alert')).toContainText('That code didn’t work')
-  await page.getByLabel('6-digit code').fill('123456')
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  // Still in the box, which points at the message, so retyping just works.
+  await expect(code).toBeFocused()
+  await expect(code).toHaveAttribute('aria-invalid', 'true')
+  await expect(code).toHaveAttribute('aria-describedby', 'signin-problem')
+  // Sending another says it went.
+  await page.getByRole('button', { name: 'send another' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'We sent a new email' })).toBeVisible()
+  await code.fill('123456')
+  await code.press('Enter')
   await expect(page).toHaveURL(/#\/passport\/pat-rivera$/)
+  await expect(page.locator('#main')).toBeFocused()
+})
+
+test('signing out works even when the network drops', async ({ page }) => {
+  await fakeSupabase(page, PAT)
+  await page.goto('./')
+  await signInWithCode(page)
+  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
+  await page.route('**/auth/v1/logout**', (route) => route.abort('internetdisconnected'))
+  await page.getByRole('button', { name: 'Sign out' }).click()
+  await expect(page.getByRole('heading', { name: 'Sign in to your passport' })).toBeVisible()
+  // And it sticks: a reload doesn't bring the passport back.
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Sign in to your passport' })).toBeVisible()
 })
 
 test('signed in but not on the roster gets told, not someone else’s passport', async ({ page }) => {

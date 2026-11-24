@@ -9,10 +9,12 @@
 // click links before the rep does, which uses them up.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { currentSession, forgetSignInCode, onAuthChange, signOut as endSession } from '../data/live'
+import { currentSession, forgetSignInCode, onAuthChange, signOut as endSession, storedUserId } from '../data/live'
 import { runtime } from '../runtime'
 
-export type AuthStatus = 'off' | 'checking' | 'signed-out' | 'signed-in'
+// 'unavailable': the sign-in service couldn't be reached (or its code didn't
+// download), so it isn't known yet whether anyone is signed in.
+export type AuthStatus = 'off' | 'checking' | 'signed-out' | 'signed-in' | 'unavailable'
 
 export interface AuthValue {
   status: AuthStatus
@@ -29,6 +31,8 @@ export interface AuthValue {
   // from a session that was already there.
   noteCodeSignIn: (trying: boolean) => void
   signOut: () => Promise<void>
+  // Tries the sign-in service again after 'unavailable'.
+  retry: () => void
 }
 
 const AuthContext = createContext<AuthValue | null>(null)
@@ -56,6 +60,9 @@ function takeLinkError(): string | null {
     : 'That sign-in link didn’t work. Ask for a new one below, or type the 6-digit code from the email.'
 }
 const linkError = typeof window !== 'undefined' && runtime.mode === 'live' ? takeLinkError() : null
+// Who was signed in before this page's email link was used, if anyone. A
+// link that fails leaves that session in place, which isn't a new sign-in.
+const signedInBefore = typeof window !== 'undefined' && runtime.mode === 'live' && openedFromLink ? storedUserId() : null
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const live = runtime.mode === 'live'
@@ -66,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [signedInBy, setSignedInBy] = useState<AuthValue['signedInBy']>(null)
   const byCode = useRef(false)
   const current = useRef<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     if (!live) return
@@ -80,7 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUserId(session.user.id)
           setEmail(session.user.email ?? null)
           setStatus('signed-in')
-          if (openedFromLink) setSignedInBy('link')
+          // Only a session the link really made counts as signing in by link.
+          if (openedFromLink && attempt === 0 && session.user.id !== signedInBefore) setSignedInBy('link')
         } else {
           setStatus('signed-out')
           if (openedFromLink) {
@@ -91,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       })
       .catch(() => {
-        if (!cancelled) setStatus('signed-out')
+        if (!cancelled) setStatus('unavailable')
       })
       .finally(forgetSignInCode)
 
@@ -122,15 +131,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true
       stop()
     }
-  }, [live])
+  }, [live, attempt])
+
+  const retry = useCallback(() => {
+    setStatus('checking')
+    setAttempt((n) => n + 1)
+  }, [])
 
   const noteCodeSignIn = useCallback((trying: boolean) => {
     byCode.current = trying
   }, [])
 
+  // Never throws: signing out here always ends the session in this browser
+  // (see live.ts), even if telling the server fails.
   const signOut = useCallback(async () => {
     try {
       await endSession()
+    } catch {
+      // Already signed out locally; the server will expire the session.
     } finally {
       current.current = null
       setUserId(null)
@@ -141,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ status, userId, email, linkProblem, signedInBy, noteCodeSignIn, signOut }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ status, userId, email, linkProblem, signedInBy, noteCodeSignIn, signOut, retry }}>{children}</AuthContext.Provider>
   )
 }
 

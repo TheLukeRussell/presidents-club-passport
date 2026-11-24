@@ -23,3 +23,6 @@
   background: var(--color-paper-2);
   color: var(--color-ink);
 }
+
+.signin__sent { color: var(--color-ink-2); font-size: var(--text-sm); }
+.signin__sent:empty { display: none; }

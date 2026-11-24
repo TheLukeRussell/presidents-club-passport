@@ -15,6 +15,22 @@ import type { PassportData, StampRow } from './types'
 
 let client: Promise<SupabaseClient> | null = null
 
+// Where supabase-js keeps the session in this browser. Named here, rather
+// than left to its default, so the sign-in code can tell whether someone was
+// already signed in before an email link was opened.
+export const STORAGE_KEY = 'pcp-supabase-auth'
+
+// The user id of the session already stored in this browser, if any. Read
+// before Supabase starts up and swaps a ?code= for a new session.
+export function storedUserId(): string | null {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? 'null') as { user?: { id?: unknown } } | null
+    return typeof value?.user?.id === 'string' ? value.user.id : null
+  } catch {
+    return null
+  }
+}
+
 // One client for the whole app, made on first use. The library is fetched
 // then too, so the demo never downloads it. PKCE puts the sign-in code in
 // the query string (?code=...), before the #, so it never collides with the
@@ -22,11 +38,18 @@ let client: Promise<SupabaseClient> | null = null
 export function supabase(): Promise<SupabaseClient> {
   const settings = runtime.supabase
   if (!settings) return Promise.reject(new Error('Supabase isn’t set up in config.js'))
-  client ??= import('@supabase/supabase-js').then(({ createClient }) =>
-    createClient(settings.url, settings.anonKey, {
-      auth: { flowType: 'pkce', detectSessionInUrl: true, persistSession: true, autoRefreshToken: true },
-    }),
-  )
+  client ??= import('@supabase/supabase-js')
+    .then(({ createClient }) =>
+      createClient(settings.url, settings.anonKey, {
+        auth: { flowType: 'pkce', detectSessionInUrl: true, persistSession: true, autoRefreshToken: true, storageKey: STORAGE_KEY },
+      }),
+    )
+    .catch((error: unknown) => {
+      // A failed download (a flaky phone connection, say) mustn't stick:
+      // forget it so the next try fetches the library again.
+      client = null
+      throw error
+    })
   return client
 }
 
@@ -56,11 +79,15 @@ export function onAuthChange(listener: (event: AuthChangeEvent, session: Session
   let stop = () => {
     stopped = true
   }
-  void supabase().then((db) => {
-    if (stopped) return
-    const { data } = db.auth.onAuthStateChange(listener)
-    stop = () => data.subscription.unsubscribe()
-  })
+  supabase()
+    .then((db) => {
+      if (stopped) return
+      const { data } = db.auth.onAuthStateChange(listener)
+      stop = () => data.subscription.unsubscribe()
+    })
+    .catch(() => {
+      // The library didn't load; AuthProvider shows that and offers a retry.
+    })
   return () => stop()
 }
 
@@ -78,8 +105,11 @@ export async function verifySignInCode(email: string, token: string): Promise<vo
   if (error) throw error
 }
 
+// Signs out of this browser. 'local' removes the session here before it
+// asks the server to revoke it, so a dropped connection can't leave someone
+// signed in on a shared computer after they pressed Sign out.
 export async function signOut(): Promise<void> {
-  const { error } = await (await supabase()).auth.signOut()
+  const { error } = await (await supabase()).auth.signOut({ scope: 'local' })
   if (error) throw error
 }
 
@@ -104,11 +134,16 @@ export async function loadLiveData(signal?: AbortSignal): Promise<PassportData |
     .abortSignal(signal ?? new AbortController().signal)
   if (stamps.error) throw new DataError(`Supabase wouldn’t return your stamps: ${stamps.error.message}`)
 
+  // The passport tells stamps apart by activity, day and title. A training
+  // imported once with no format (so virtual) and again as in person is two
+  // rows here but one stamp there, so keep the in-person one.
+  const byStamp = new Map<string, StampRow>()
+  const stampKey = (row: StampRow) => `${row.activity}|${row.date}|${row.event.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
   const rows: StampRow[] = []
   for (const s of (stamps.data ?? []) as unknown as StampFromDb[]) {
     if (!s.activity || !isActivityType(s.activity.type)) continue
     const { activity, format } = activityOf(s.activity.type)
-    rows.push({
+    const row: StampRow = {
       rep_email: rep.data.email,
       activity,
       event: s.activity.title,
@@ -116,7 +151,12 @@ export async function loadLiveData(signal?: AbortSignal): Promise<PassportData |
       date: s.earned_at,
       format,
       location: s.activity.location ?? '',
-    })
+    }
+    const twin = byStamp.get(stampKey(row))
+    if (twin && twin.format === 'in person') continue
+    if (twin) rows.splice(rows.indexOf(twin), 1)
+    byStamp.set(stampKey(row), row)
+    rows.push(row)
   }
   return {
     reps: [{ rep_email: rep.data.email, rep_name: rep.data.name, team: rep.data.team ?? '', start_date: '' }],
